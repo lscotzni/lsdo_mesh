@@ -42,3 +42,4 @@ D = 175. # Domain Radius
 Ras = (Rr+Rs)/2 # Radius splitting air-gap mesh of rotor and stator
 RR = (Rin+Rr)/2 # Midpoint to cut air-gap mesh in Rotor
 RS = (Rsy+Rout)/2 # # Midpoint to cut air-gap mesh in Stator
+

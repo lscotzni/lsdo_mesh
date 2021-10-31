@@ -2,7 +2,7 @@ import gmsh
 import numpy as np
 import sys
 
-from lsdo_mesh.remove_duplicates import remove_duplicate_points, remove_duplicate_curves
+from lsdo_mesh.mesh.remove_duplicates import remove_duplicate_points, remove_duplicate_curves
 # from lsdo_mesh.geometry.geometry_classes import Entity, Point, Curve, Surface, Vertex, Edge, 
 
 class Entity(object):
