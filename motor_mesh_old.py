@@ -560,7 +560,8 @@ print(right_stator_winding_lines)
 
 aaa = motor.cut([(2,1)],rotor_slot_bool,5 + 3*p + 2*s + 2,removeObject=True,removeTool=False)
 print(aaa)
-# exit()
+print(5 + 3*p + 2*s + 2)
+exit()
 
 
 
@@ -592,7 +593,7 @@ gmsh.model.setColor([(2,6+3*p+1+i) for i in range(6)],255,255,0) # Phase A Windi
 gmsh.model.setColor([(2,6+3*p+7+i) for i in range(6)],255,0,255) # Phase B Windings
 gmsh.model.setColor([(2,6+3*p+13+i) for i in range(6)],0,255,0) # Phase C Windings
 
-if False:
+if True:
     # May need to remove Duplicaes and synchronize after groups
     '''GROUP AND NAME DEFINITIONS'''
     gmsh.model.addPhysicalGroup(2,[5 + 3*p + 2*s + 2],1)
@@ -652,7 +653,8 @@ if False:
         gmsh.model.addPhysicalGroup(2,[5+3*p+2+2*i],5+(i+1)+3*p)
         gmsh.model.setPhysicalName(2,5+(i+1)+3*p,"Right Stator Winding Domain " + str(i+1))
 
-        gmsh.model.addPhysicalGroup(1,right_stator_winding_lines[(4*i+0):(4*i+4)],5+(i+1)+3*p)
+        # gmsh.model.addPhysicalGroup(1,right_stator_winding_lines[(4*i+0):(4*i+4)],5+(i+1)+3*p)
+        gmsh.model.addPhysicalGroup(1,[right_stator_winding_lines[4*i+0], right_stator_winding_lines[4*i+4]],5+(i+1)+3*p)
         gmsh.model.setPhysicalName(1,5+(i+1)+3*p,"Right Stator Winding Boundary " + str(i+1))
 
         # gmsh.model.addPhysicalGroup(1,right_stator_winding_lines[(4*i+0):(4*i+4)],100+i)

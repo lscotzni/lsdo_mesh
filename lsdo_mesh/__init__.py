@@ -1,2 +1,2 @@
-from lsdo_mesh.mesh import mesh_classes
-# from lsdo_mesh.mesh import remove_duplicates
+from lsdo_mesh import geometry_classes
+from lsdo_mesh import remove_duplicates

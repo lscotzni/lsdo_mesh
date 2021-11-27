@@ -1,4 +1,4 @@
-import lsdo_mesh.lsdo_mesh as lm
+from lsdo_mesh import mesh_classes as lm
 
 '''
 SIMPLE EXAMPLE OF A CIRCLE IN A SQUARE

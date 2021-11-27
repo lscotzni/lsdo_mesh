@@ -1,4 +1,4 @@
-from lsdo_mesh import mesh_classes as lm
+from lsdo_mesh import geometry_classes as lm
 import numpy as np
 
 
@@ -54,6 +54,7 @@ for i in range(instances-1):
     p3_array.extend(lm.rotate([p3_a], angle=[0., 0., (i + 1) * np.pi / instances]))
     p4_array.extend(lm.rotate([p4_a], angle=[0., 0., (i + 1) * np.pi / instances]))
 
+
 # CURVES
 # -- Square
 ct_s        = lm.Curve(p1_s, p2_s, origin, curve_type='arc')
@@ -76,18 +77,18 @@ for i in range(instances):
 
 # SURFACES
 # -- Square
-s1_s        = lm.Surface(ct_s, cl_s, cb_s, cr_s)
+s1_s        = lm.Surface([ct_s, cl_s, cb_s, cr_s])
 # m.add_entity(s1_s)
 
 # -- Slices
 s_array     = []
 for i in range(instances):
-    s_array.append(lm.Surface(
+    s_array.append(lm.Surface([
         c1_array[i],
         c2_array[i],
         c3_array[i],
         c4_array[i]
-    ))
+    ]))
     # m.add_entity(s_array[i])
 
 final_surface   = lm.BooleanSurface([s1_s], s_array, operation = 'subtract')

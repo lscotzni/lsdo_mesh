@@ -1,4 +1,4 @@
-import lsdo_mesh.lsdo_mesh as lm
+from lsdo_mesh import geometry_classes as lm
 import numpy as np
 
 '''
@@ -81,32 +81,32 @@ bot_b_c    = lm.Curve(bot_br_p,bot_bl_p)
 # SURFACES ----------------------------- 
 
 left_square = lm.Surface(
-    left_l_c,left_t_c,left_r_c,left_b_c
+    [left_l_c,left_t_c,left_r_c,left_b_c]
 )
 m.add_entity(left_square)
 
 mid_square = lm.Surface(
-    mid_l_c, mid_t_c, mid_r_c, mid_b_c
+    [mid_l_c, mid_t_c, mid_r_c, mid_b_c]
 )
 m.add_entity(mid_square)
 
 right_square = lm.Surface(
-    right_l_c, right_t_c, right_r_c, right_b_c
+    [right_l_c, right_t_c, right_r_c, right_b_c]
 )
 m.add_entity(right_square)
 
 rightright_square = lm.Surface(
-    rightright_l_c, rightright_t_c, rightright_r_c, rightright_b_c
+    [rightright_l_c, rightright_t_c, rightright_r_c, rightright_b_c]
 )
 m.add_entity(rightright_square)
 
 top_square = lm.Surface(
-    top_l_c, top_t_c, top_r_c, top_b_c
+    [top_l_c, top_t_c, top_r_c, top_b_c]
 )
 m.add_entity(top_square)
 
 bot_square = lm.Surface(
-    bot_l_c, bot_t_c, bot_r_c, bot_b_c
+    [bot_l_c, bot_t_c, bot_r_c, bot_b_c]
 )
 m.add_entity(bot_square)
 

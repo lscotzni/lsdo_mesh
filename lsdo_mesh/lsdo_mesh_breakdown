@@ -51,4 +51,20 @@ geometry operations
 rotate: set up as own method, not just in Point, because it can be applied to any dimension
 
 # ------------------------ TO DO ------------------------
-- 
+m = lm.Mesh()
+
+p1 = lm.Point(x, y, mesh_size)
+p2 = lm.Point(r, theta, mesh_size)
+p3 = lm.Point(r, theta, mesh_size)
+
+c1 = lm.Curve(p1, p2)
+c2 = lm.Curve(p2, p3, p1, curve_type='arc')
+c3 = lm.Curve(p3, p1)
+
+s1 = lm.Surface([c1, c2, c3])
+m.add_entity(s1)
+s2 = lm.Surface([p1, p2, p3], input_type='polygon')
+m.add_entity(s2)
+
+m.assemble()
+
