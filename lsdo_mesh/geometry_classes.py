@@ -88,7 +88,7 @@ class Mesh(object):
         
         return len(self.curve_type) - 1
 
-    def add_surface(self, children, physical_group=False):
+    def add_surface(self, children, curve_loop_lengths, physical_group=False):
         self.surfaces.extend([curve.id for curve in children])
         if self.surface_indices == []:
             self.surface_indices.append([0, len(children)])
@@ -506,10 +506,13 @@ class Mesh(object):
         print('Created all curves.')
 
         # INSERT BOOLEAN OPERATIONS FOR CURVES
+
+        # CREATE CURVE LOOPS
         
         # CREATE SURFACES
         surface_physical_group_indices = []
         for i, surface in enumerate(self.surface_indices):
+            # for ... in <indicator for number of curve loops here>
             curve_input = list(self.surfaces[np.arange(surface[0],surface[1])]+1)
             print(curve_input)
             curveloop = occ_kernel.addCurveLoop(curve_input)  # fix the  ccc via Geometry.OCCAutoFix = 0 later

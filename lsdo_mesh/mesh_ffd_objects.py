@@ -75,9 +75,13 @@ class Surface(Entity):
 
     def initialize(self, *args, input_type='curves', physical_group=False):
         props = self.properties
+        curve_loop_lengths = []
         if input_type == 'curves':
             props['type'] = 0
             args    = args[0]
+            curve_loop_lengths.append(len(args))
+            
+
         elif input_type == 'polygon':
             curves = []
             for ind in range(len(args[0])):
@@ -87,15 +91,29 @@ class Surface(Entity):
                     curve = Curve(args[0][ind], args[0][0])
                 curves.append(curve)
             args = curves
+            curve_loop_lengths.append(len(args))
+        elif input_type == 'curve_loops': # IMPLIES AT LEAST 2 DISTINCT SETS OF CURVES
+            props['type'] = 1
+            
+            curves = []
+            for loop in args: # args formatted as ([[...]], [[...]], ...)
+                curve_loop_lengths.append(len(loop[0]))
+                for curve in loop[0]: # loop formatted as [[...]]; loop[0] is the internal list
+                    curves.append(curve)
+            args = curves
+            # turns embedded lists in original args to single list of curves
+            # need a counter to signify which curves exist for which curve loop
+
         else:
-            raise KeyError('Only curves and polygon have been implemented.')
+            raise KeyError('Only curves, polygon and curve loops have been implemented.')
 
         self.children       = list(args)
         self.physical_group = physical_group
         # the format for a physical group is (ind, name) or ind; 
+        self.curve_loops = curve_loop_lengths
 
     def assemble_self(self):
-        return self.mesh.add_surface(self.children, self.physical_group)
+        return self.mesh.add_surface(self.children, self.curve_loop_lengths, self.physical_group)
 
 class BooleanSurface(Entity):
     

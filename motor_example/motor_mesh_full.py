@@ -347,6 +347,13 @@ domain_boundary_c       = [
 #   - might be an issue with the duplicate removal but unsure
 
 # ---------------------------- SURFACES ----------------------------
+# START MULTIPLE CURVE LOOPS TEST
+asdf  = lm.Surface([outer_stator_surface_c],[stator_core_boundary_c], input_type='curve_loops')
+m.add_entity(asdf)
+print(vars(asdf))
+m.assemble(coordinate_system='polar')
+exit()
+# END MULTIPLE CURVE LOOPS TEST
 stator_core_outer_surface     = lm.Surface(outer_stator_surface_c)
 # m.add_entity(stator_core_outer_surface)
 
