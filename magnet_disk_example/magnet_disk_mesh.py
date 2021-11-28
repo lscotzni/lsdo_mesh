@@ -128,14 +128,15 @@ delta[8:, 0] = 0
 
 # above entries (0:8) correspond to magnet in Q1 shifting by pi/8 ccw and radially out by 0.25
 # above entries (8:16) correspond to magnet in Q2 shifting radially out by 0.25
-
-new_edge_coords, old_edge_coords, edge_deltas, edge_indices = m.test_ffd_edge_parametrization_polar(delta, output_type='cartesian')
+def generateMeshMovement():
+    new_edge_coords, old_edge_coords, edge_deltas, edge_indices = m.test_ffd_edge_parametrization_polar(delta, output_type='cartesian')
+    return new_edge_coords, old_edge_coords, edge_deltas, edge_indices
 # outputs of line 132 are the new edge coordinates, old edge coordinates, the delta array and edge indices
 
-# print(old_edge_coords)
-# print(new_edge_coords)
-# print(edge_deltas)
-# print(len(new_edge_coords))
+#print(old_edge_coords)
+#print(new_edge_coords)
+#print(edge_deltas)
+#print(len(new_edge_coords))
 
 # ------------------ MANUAL TEST ------------------
 if False:  # (can ignore this for now)
