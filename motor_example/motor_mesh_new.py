@@ -43,7 +43,7 @@ Ras         = (Rr+Rs)/2 # Radius splitting air-gap mesh of rotor and stator
 RR          = (Rin+Rr)/2 # Midpoint to cut air-gap mesh in Rotor
 RS          = (Rsy+Rout)/2 # # Midpoint to cut air-gap mesh in Stator
 
-m           = lm.Mesh(name='motor_mesh_new', popup=False)
+m           = lm.Mesh(name='motor_mesh_new', popup=True)
 
 # NOTE: need to fix implementation; the process does not like lists
 # as inputs, but the option to do so makes things easier (especially 

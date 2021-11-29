@@ -5,11 +5,15 @@ import matplotlib.pyplot as plt
 '''
 Mesh Generation of 2D Radial Flux PMSM; only half is modeled (180 degrees) due to periodicity
 '''
+# =========================================================
+#   !!!!!!! NOTE: NEED TO WRITE AS A FUNCTION !!!!!!!
+# =========================================================
+
 ''' -------------------- Motor Attributes -------------------- '''
 # p       = 12 # poles per 360 degrees
 # s       = p * 3 # stator slots per 360 degrees
-p       = 8 # poles per 360 degrees
-s       = 5 # stator slots per 360 degrees
+p       = 3 # poles per 360 degrees
+s       = 3 * p # stator slots per 360 degrees
 m       = 3 # number of phases for stator winding current
 
 ks      = 10 # target mesh size
@@ -45,7 +49,7 @@ Ras         = (Rr+Rs)/2 # Radius splitting air-gap mesh of rotor and stator
 RR          = (Rin+Rr)/2 # Midpoint to cut air-gap mesh in Rotor
 RS          = (Rsy+Rout)/2 # # Midpoint to cut air-gap mesh in Stator
 
-m           = lm.Mesh(name='motor_mesh_new', popup=True)
+m           = lm.Mesh(name='motor_mesh_full', popup=True)
 
 # NOTE: need to fix implementation; the process does not like lists
 # as inputs, but the option to do so makes things easier (especially 
@@ -203,10 +207,10 @@ for i in range(p):
 magnet_c = []
 for i in range(p):
     magnet_c.extend([[
-        # lm.Curve(magnet_air_slot_3_p[i], magnet_air_slot_4_p[i], physical_group=(2*i+1, 'Magnet Side R '+str(i+1))),
-        lm.Curve(magnet_air_slot_3_p[i], magnet_air_slot_4_p[i]),
+        lm.Curve(magnet_air_slot_3_p[i], magnet_air_slot_4_p[i], physical_group=(2*i+1, 'Magnet Side R ' + str(i+1))),
+        # lm.Curve(magnet_air_slot_3_p[i], magnet_air_slot_4_p[i]),
         lm.Curve(magnet_air_slot_4_p[i], magnet_air_slot_6_p[i], origin, curve_type='arc'),
-        lm.Curve(magnet_air_slot_6_p[i], magnet_air_slot_5_p[i]),
+        lm.Curve(magnet_air_slot_6_p[i], magnet_air_slot_5_p[i], physical_group=(2*i+2, 'Magnet Side L ' + str(i+1))),
         lm.Curve(magnet_air_slot_5_p[i], magnet_air_slot_3_p[i], origin, curve_type='arc'),
     ]])
 
@@ -347,13 +351,7 @@ domain_boundary_c       = [
 #   - might be an issue with the duplicate removal but unsure
 
 # ---------------------------- SURFACES ----------------------------
-# START MULTIPLE CURVE LOOPS TEST
-asdf  = lm.Surface([outer_stator_surface_c],[stator_core_boundary_c], input_type='curve_loops')
-m.add_entity(asdf)
-print(vars(asdf))
-m.assemble(coordinate_system='polar')
-exit()
-# END MULTIPLE CURVE LOOPS TEST
+
 stator_core_outer_surface     = lm.Surface(outer_stator_surface_c)
 # m.add_entity(stator_core_outer_surface)
 
@@ -381,20 +379,12 @@ for i in range(p):
 
 rotor_inner_surface_s   = lm.Surface(
     rotor_inner_surface_c,
-    # physical_group=(45, "Rotor Air Gap")
+    physical_group=(45, "Rotor Air Gap")
 )
 # m.add_entity(rotor_inner_surface_s)
 
 # ---------------------------- BOOLEAN SURFACES ----------------------------
 
-
-right_winding_surfaces, left_winding_surfaces = [], []
-for i in range(s):
-    right_winding_surfaces.append(lm.Surface(stator_windings_right_c[5  * i: 5 * i + 5], physical_group=(2+(2*i+1), 'Right Winding '+str(i+1))))
-    left_winding_surfaces.append(lm.Surface(stator_windings_left_c[5  * i: 5 * i + 5], physical_group=(2+(2*i+2), 'Left Winding '+str(i+1))))
-
-    # m.add_entity(right_winding_surfaces[i])
-    # m.add_entity(left_winding_surfaces[i])
 
 rotor_core_subtract = []
 rotor_core_subtract.extend(magnet_s)
@@ -402,9 +392,9 @@ rotor_core_subtract.extend(left_air_slot_s)
 rotor_core_subtract.extend(right_air_slot_s)
 rotor_core_subtract.append(rotor_inner_surface_s)
 
-stator_cut = []
-stator_cut.extend(right_winding_surfaces)
-stator_cut.extend(left_winding_surfaces)
+# stator_cut = []
+# stator_cut.extend(right_winding_surfaces)
+# stator_cut.extend(left_winding_surfaces)
 # stator_cut.append(air_gap_surface)
 # stator_cut.extend()
 
@@ -413,26 +403,37 @@ stator_cut.extend(left_winding_surfaces)
 # )
 # m.add_entity(stator_core)
 
-rotor_core = lm.BooleanSurface(
-    [rotor_core_surface], rotor_core_subtract, removeTool=False, operation='subtract', physical_group=(1, 'Shaft')
-)
-# m.add_entity(rotor_core)
-
 air_gap = lm.BooleanSurface(
     [air_gap_surface], [rotor_core_surface], removeTool=True, operation='subtract', physical_group=(100, 'Air Gap')
 )
-# m.add_entity(air_gap)
+m.add_entity(air_gap)
 
-
-asdf = []
-asdf.append(air_gap)
-asdf.append(rotor_core)
-asdf.extend(stator_cut)
-
-stator_core  = lm.BooleanSurface(
-    [stator_core_outer_surface], asdf, removeTool=True, operation='subtract',
+rotor_core = lm.BooleanSurface(
+    [rotor_core_surface], rotor_core_subtract, removeTool=False, operation='subtract', physical_group=(1, 'Shaft')
 )
-m.add_entity(stator_core)
+m.add_entity(rotor_core)
+
+right_winding_surfaces, left_winding_surfaces = [], []
+for i in range(s):
+    right_winding_surfaces.append(lm.Surface(stator_windings_right_c[5  * i: 5 * i + 5], physical_group=(2+(2*i+1), 'Right Winding '+str(i+1))))
+    left_winding_surfaces.append(lm.Surface(stator_windings_left_c[5  * i: 5 * i + 5], physical_group=(2+(2*i+2), 'Left Winding '+str(i+1))))
+
+    m.add_entity(right_winding_surfaces[i])
+    m.add_entity(left_winding_surfaces[i])
+
+asdf  = lm.Surface([outer_stator_surface_c],[stator_core_boundary_c], input_type='curve_loops', physical_group=(200, 'Stator Core'))
+m.add_entity(asdf)
+
+
+# asdf = []
+# asdf.append(air_gap)
+# asdf.append(rotor_core)
+# asdf.extend(stator_cut)
+
+# stator_core  = lm.BooleanSurface(
+#     [stator_core_outer_surface], asdf, removeTool=True, operation='subtract',
+# )
+# m.add_entity(stator_core)
 
 
 
@@ -454,10 +455,6 @@ m.add_entity(stator_core)
 
 
 
-
-
-
-
 # domain_boundary_surface     = lm.Surface(domain_boundary_c, physical_group = (47, 'Outer Domain'))
 # m.add_entity(domain_boundary_surface)
 
@@ -473,11 +470,11 @@ m.add_entity(stator_core)
 mesh_points  = m.get_coordinates(coord_sys='cartesian')
 # print(mesh_points)
 
-plt.plot(
-    [point[0] for point in mesh_points],
-    [point[1] for point in mesh_points],
-    'k*'
-)
+# plt.plot(
+#     [point[0] for point in mesh_points],
+#     [point[1] for point in mesh_points],
+#     'k*'
+# )
 # plt.show()
 inner_rotor_f = []
 inner_rotor_f.extend([
@@ -492,6 +489,7 @@ inner_rotor_f[0].add_shape_parameter(
     'constant'
 )
 
+m.add_face(inner_rotor_f[0])
 m.assemble(coordinate_system='polar')
 
 # inner_rotor_f[0].return_coordinates()
@@ -522,4 +520,4 @@ ERRORS:
 '''
 
 
-# os.system('python3 msh2xdmf.py -d 2 motor_mesh_new.msh')
+# os.system('python3 msh2xdmf.py -d 2 motor_mesh_full.msh')

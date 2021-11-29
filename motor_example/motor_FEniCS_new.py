@@ -45,7 +45,8 @@ magnet_area = (Rtm**2 - Rbm**2) * theta_m/2
 # Setting geometrical conditions for boundaries
 class Domain_Boundary(do.SubDomain):
     def inside(self,x,on_boundary):
-        return on_boundary and x[1] > DOLFIN_EPS
+        # return on_boundary and x[1] > DOLFIN_EPS
+        return on_boundary
 
 # Setting geometry for periodic boundary condition
 class Periodic_Boundary(do.SubDomain):
@@ -61,7 +62,7 @@ domain_bound = Domain_Boundary() # Far-Field Boundary Condition (approaches zero
 semicircle_bound = Periodic_Boundary() # Periodic Boundary Conditions
 # -------------------------------------------------------------------------------------------
 mesh, boundaries_mf, subdomains_mf, association_table = import_mesh(
-    prefix="motor_mesh_new",
+    prefix="motor_mesh_full",
     dim=2,
     subdomains=True
 )
@@ -129,7 +130,7 @@ def RelativePermeability(subdomain, A_z):
                 (expA * do.exp(expB*norm_B + expC) + 1)
             )
         )
-        # mu = 1000
+        mu = 1000
 
     elif subdomain >= 3 and subdomain <= 20:
         mu = 1.0

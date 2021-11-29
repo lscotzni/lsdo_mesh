@@ -5,6 +5,9 @@ from scipy.linalg import norm
 from scipy.sparse import csc_matrix, csr_matrix, lil_matrix
 import sys
 
+from csdl import Model
+from csdl_om import Simulator
+
 from lsdo_mesh.mesh_ffd_objects import *
 # from lsdo_mesh.mesh_ffd_objects_new import *
 from lsdo_mesh.remove_duplicates import remove_duplicate_points, remove_duplicate_curves
@@ -31,6 +34,7 @@ class Mesh(object):
 
         self.surfaces               = []
         self.surface_indices        = []
+        self.surface_curve_loops    = []
         self.surface_type           = []
 
         self.boolean_operations     = []
@@ -101,8 +105,10 @@ class Mesh(object):
 
         if type(physical_group) is not tuple:
             if physical_group is not False:
-                raise KeyError('Physical groups must be tuples denoted as (int, string).')
+                raise TypeError('Physical groups must be tuples denoted as (int, string).')
         self.surface_physical_groups.append(physical_group)
+
+        self.surface_curve_loops.append(curve_loop_lengths)
 
         return len(self.surface_indices) - 1
 
@@ -264,10 +270,9 @@ class Mesh(object):
         # for curves where the other point has a negative theta value, this means we must use -pi
         # for curves where the other point has a positive theta value, we use pi
         # gmsh will NOT allow curves to be made further than pi, so this ensures consistency of signs
-        num_edge_nodes = max(self.edge_node_indices[-1]) 
 
-        # the origin is ALWAYS the last node set according to gmsh so it is not considered here
-        # the nodes are ordered from 1 to number of points
+        num_edge_nodes = max([max(node) for node in self.edge_node_indices])
+
         [num_points, dim] = self.mesh_nodes.shape
         num_edges = len((self.edge_node_indices))
 
@@ -279,14 +284,18 @@ class Mesh(object):
         # IDENTITY MAP FOR NODES CORRESPONDING TO USER-DEFINED MESH POINTS
         # KEY NOTE HERE: THE ORIGIN IS ALWAYS THE LAST NODE, SO WE WILL NOT CONSIDER IT
         # THUS, THE SET OF NODES DEFINING EXACTLY THE POINTS IS EQUAL TO 1: num_points - 1, 
-        for i in range(1, 2 * (num_points - 1) + 1):
-            sparse_row.append(i-1)
-            sparse_col.append(i-1)
-            sparse_val.append(1)
-        
-        sparse_row.extend([num_edge_nodes * dim, num_edge_nodes * dim + 1])
-        sparse_col.extend([(num_points - 1) * dim, (num_points - 1) * dim + 1])
-        sparse_val.extend([1, 1])
+        # for i in range(1, 2 * (num_points - 1) + 1):
+            # sparse_row.append(i-1)
+            # sparse_col.append(i-1)
+            # sparse_val.append(1)
+        for i, node_ind in enumerate(self.gmsh_order_point_node_ind):
+            sparse_row.extend([dim * i, dim * i + 1])
+            sparse_col.extend([dim * i, dim * i + 1])
+            sparse_val.extend([1.0, 1.0])
+
+        print(sparse_row)
+        print(sparse_col)
+        print(sparse_val)
         
         # use self.edge_boundary_nodes and self.edge_node_indices
         for i, edge in enumerate(self.edge_node_indices):
@@ -321,8 +330,10 @@ class Mesh(object):
                         elif pi_ind[0] == len(edge_nodes) - 2:
                             pi_sign_start = 1
 
-            start = int(edge[-2] - 1)
-            end = int(edge[-1] - 1)
+            start = np.where(self.gmsh_order_point_node_ind == int(edge[-2]))[0][0]
+            end = np.where(self.gmsh_order_point_node_ind == int(edge[-1]))[0][0]
+            print('start, end:', start, end)
+            # end = int(edge[-1] - 1)
             num_internal_nodes = len(edge) - 2
             # print(start, end, num_internal_nodes)
             u = []
@@ -357,9 +368,13 @@ class Mesh(object):
                     ])
                 else:
                     sparse_val.extend([1 - u[j], u[j]] * 2)
+            1
 
         # self.edge_param_sps_mat[sparse_row, sparse_col] = sparse_val
         # self.edge_param_sps_mat.tocsc()
+        print(int((num_edge_nodes + 1) * dim), int((num_points) * dim))
+        print(len(sparse_val), len(sparse_row), len(sparse_col))
+        print(max(sparse_row))
         self.edge_param_sps_mat = csc_matrix(
             (sparse_val, (sparse_row, sparse_col)),
             shape=(int((num_edge_nodes + 1) * dim), int((num_points) * dim)),
@@ -376,24 +391,54 @@ class Mesh(object):
         for i, edge_nodes in enumerate(self.edge_node_indices):
             edge_node_coords = np.array(self.edge_node_coords[i])[:,:2].reshape((2 * len(edge_nodes),))
             for j, node in enumerate(edge_nodes):
+                print('node:', node)
+                print(node_coords_test[int(2*(node-1)):int(2*(node-1) + 2)])
+                print(edge_node_coords[int(2*(j)):int(2*(j) + 2)])
+                print('---')
+                
                 error = np.array(node_coords_test[int(2*(node-1)):int(2*(node-1) + 2)], dtype=float) - \
                     np.array(edge_node_coords[int(2*(j)):int(2*(j) + 2)], dtype=float)
                 error_norm_array.append(np.linalg.norm(error)) 
+            1
                 # error_norm_array.append(norm(error)) # USING NORM FROM SCIPY (FAILS WITH THE nan)
 
-        high_error_ind = np.where(np.abs(error_norm_array) > 1e-8)
+        self.high_error_ind = np.where(np.abs(error_norm_array) > 1e-8)
 
         # UNCOMMENT FIRST 3 LINES BELOW TO LOOK AT ERROR
         print('error norm array: ', error_norm_array)
-        print('high error norm locations: ', high_error_ind)
+        print('high error norm locations: ', self.high_error_ind)
         print('norm of error norm array: ', np.linalg.norm(error_norm_array))
         # print(node_coords_test.reshape((int(len(node_coords_test)/2), dim)))
+        print('---')
+        print(node_coords_test)
+        1 
 
     def assemble_mesh_parametrization(self, coordinate_system='cartesian'):
         pass
 
     def create_csdl_model(self):
-        pass
+        class MeshModel(Model):
+            def initialize(self):
+                self.parameters.declare('ffd_parametrization')
+                self.parameters.declare('edge_parametrization')
+
+            def define(self):
+                ffd_parametrization = self.parameters['ffd_parametrization']
+                edge_parametrization = self.parameters['edge_parametrization']
+
+                # new_point_location = matvec(ffd_param, ffd_deltas) + original_points
+
+        # retrieve initial points & edge coordinates
+        
+        # simulator not needed because no computation is running
+        # sim = Simulator(
+        #     MeshModel(
+        #         ffd_parametrization = self.ffd_face_sps_mat,
+        #         edge_parametrization = self.edge_param_sps_mat
+        #     )
+        # )
+        
+        
 
     # --------------------- ASSEMBLE ---------------------
     def assemble(self, coordinate_system='cartesian'):
@@ -406,6 +451,8 @@ class Mesh(object):
         self.assemble_edge_parametrization(coordinate_system=coordinate_system)
 
         self.assemble_mesh_parametrization(coordinate_system=coordinate_system)
+        # long term, line above contains Ru's FEniCS mesh deformatino/regeneration model
+        # for short term, we will separate it
 
         self.create_csdl_model() # this contains the ffd face/edge & mesh movement csdl model classes
         # spits out the csdl variable containing mesh coordinates
@@ -437,6 +484,8 @@ class Mesh(object):
 
         self.surfaces                   = np.array(self.surfaces)
         self.surface_indices            = np.array(self.surface_indices)
+        # self.surface_curve_loops        = np.array(self.surface_curve_loops)
+        # not turning self.surface_curve_loops into np.array b/c it contains lists of different lengths
         self.surface_type               = np.array(self.surface_type)
         # self.surface_physical_groups    = np.array(self.surface_physical_groups)
 
@@ -467,6 +516,12 @@ class Mesh(object):
                     ]
                 self.curve_coord_sys[i] = 0
 
+        print('---')
+        print('before:', self.curve_physical_groups)
+        print(len(self.curve_indices))
+        print('---')
+        
+
         # removing duplicate points
         print('Starting removal of duplicate points.')
         self.point_coordinates, self.point_mesh_size, new_curves_temp = remove_duplicate_points(self.point_coordinates,self.point_mesh_size,self.curves)
@@ -478,6 +533,24 @@ class Mesh(object):
             new_curves_temp,self.curve_indices,self.curve_type, self.curve_physical_groups, self.surfaces
         )
         print('Completed removal of duplicate curves.')
+
+        print('---')
+        print('after:', self.curve_physical_groups)
+        print(len(self.curve_indices))
+        print('---')
+        # exit()
+        
+        
+        print(self.point_coordinates)
+        print(new_curves_temp)
+        print(self.curves)
+        print(self.curve_indices)
+        print(self.surfaces)
+        print(self.surface_curve_loops)
+        print(unique_surfaces)
+        print(self.surface_indices)
+        # exit()
+
 
         gmsh.initialize()
         gmsh.option.setNumber("General.Terminal",1)
@@ -498,8 +571,8 @@ class Mesh(object):
                 asdf  =  occ_kernel.addLine(self.curves[curve[0]] + 1, self.curves[curve[1] - 1] + 1, unique_surfaces[i] + 1)
             elif self.curve_type[i] == 1: # CIRCLE ARC
                 occ_kernel.addCircleArc(self.curves[curve[0]] + 1, self.curves[curve[1] - 1] + 1, self.curves[curve[1] - 2] + 1, unique_surfaces[i] + 1)
-            else:
-                pass
+            # else:
+            #     pass
             if self.curve_physical_groups[i]:
                 curve_physical_group_indices.append(i+1)
 
@@ -513,14 +586,26 @@ class Mesh(object):
         surface_physical_group_indices = []
         for i, surface in enumerate(self.surface_indices):
             # for ... in <indicator for number of curve loops here>
-            curve_input = list(self.surfaces[np.arange(surface[0],surface[1])]+1)
-            print(curve_input)
-            curveloop = occ_kernel.addCurveLoop(curve_input)  # fix the  ccc via Geometry.OCCAutoFix = 0 later
-            print(curveloop)
-            surface_ind = occ_kernel.addPlaneSurface([curveloop],i+1)
+            curve_loop_lengths = self.surface_curve_loops[i]
+            print(surface)
+            print(curve_loop_lengths)
+            gmsh_curve_loops = []
+            loop_counter = 0
+            for j, loop_size in enumerate(curve_loop_lengths):
+                num_curves_in_loop = loop_size
+                # curve_input = list(self.surfaces[np.arange(surface[0],surface[1])]+1)
+                curve_input = list(self.surfaces[np.arange(surface[0] + loop_counter, surface[0] + loop_counter + loop_size)]+1)
+                print(curve_input)
+                curveloop = occ_kernel.addCurveLoop(curve_input)  # fix the  ccc via Geometry.OCCAutoFix = 0 later
+                print(curveloop)
+                gmsh_curve_loops.append(curveloop)
+                loop_counter += loop_size
+            # surface_ind = occ_kernel.addPlaneSurface([curveloop],i+1)
+            surface_ind = occ_kernel.addPlaneSurface(gmsh_curve_loops,i+1)
 
             if self.surface_physical_groups[i]:
                 surface_physical_group_indices.append(i+1)
+        # exit()
         
         if not surface_physical_group_indices:
             print(surface_physical_group_indices)
@@ -559,9 +644,19 @@ class Mesh(object):
         # ADD PHYSICAL GROUPS
 
         curve_counter  = 0
+        # print(curve_physical_group_indices)
+        # print('---')
+        # print(len(self.curve_physical_groups))
+        # print(self.curve_physical_groups)
+        # print(len(self.curve_indices))
+        # print(self.curve_indices)
+        # print('---')
+        # exit()
         for i, group in enumerate(self.curve_physical_groups):
             if self.curve_physical_groups[i]:
                 curve_counter += 1
+                print(curve_counter)
+                print(curve_physical_group_indices[curve_counter-1])
                 gmsh.model.addPhysicalGroup(1, [curve_physical_group_indices[curve_counter-1]], group[0])
                 gmsh.model.setPhysicalName(1, group[0], group[1])  
 
@@ -610,8 +705,8 @@ class Mesh(object):
         self.gmsh_point_entities = gmsh.model.getEntities(0)
         # we hold this information below to identify what order that gmsh orders its points
         # this can be different from user input b/c of boolean operations & point regeneration
-        self.gmsh_order_point_coords = self.reorder_points_to_gmsh(coordinate_system='cartesian')
-        self.gmsh_order_point_coords_polar = self.reorder_points_to_gmsh(coordinate_system='polar')
+        self.gmsh_order_point_coords, self.gmsh_order_point_node_ind = self.reorder_points_to_gmsh(coordinate_system='cartesian')
+        self.gmsh_order_point_coords_polar = self.reorder_points_to_gmsh(coordinate_system='polar')[0]
 
         # ------------------------ GETTING CURVE INFORMATION ------------------------
         self.gmsh_curve_entities = gmsh.model.getEntities(1) # of the form (1, i)
@@ -621,17 +716,20 @@ class Mesh(object):
         # nodeTags, nodeCoords, nodeParams = gmsh.model.mesh.getNodes(dim=1, tag=5, includeBoundary=True, returnParametricCoord=False)
         for curve in self.gmsh_curve_entities[:]:
             info = gmsh.model.mesh.getNodes(dim=1, tag = curve[1], includeBoundary=True, returnParametricCoord=False)
+            # print(info[0][-2:])
             self.edge_node_coords.append(np.array(info[1]).reshape((int(len(info[1])/3),3)))
             self.edge_node_indices.append(info[0]) # the node indices along an edge; last two are the start and end nodes
+        # exit()
 
         # nodeTags, nodeCoords, nodeParams = gmsh.model.mesh.getNodes(dim=1, includeBoundary=True, returnParametricCoord=False)
         # print(nodeTags)
         # print(nodeCoords)
 
-        print('---')
-        print(self.edge_node_coords)
-        print(self.edge_node_indices)
-        print('---')
+        # print('---')
+        # print(self.edge_node_coords)
+        # print(self.edge_node_indices)
+        # exit()
+        # print('---')
 
         self.edge_node_coords = np.array(self.edge_node_coords)
 
@@ -689,27 +787,37 @@ class Mesh(object):
         # for points use self.point_coordinates and reorder them
         # print(self.point_coordinates)
         gmsh_order_point_coords = []
-        move_origin = 0
+        gmsh_order_point_node_ind = []
+        move_origin, origin_ind = 0, 0
         for point in self.gmsh_point_entities:
-            point_coord = gmsh.model.mesh.getNodes(
+            point_info = gmsh.model.mesh.getNodes(
                     dim=point[0], 
                     tag=point[1], 
                     includeBoundary=True, 
                     returnParametricCoord=False
-                )[1]
+                )
+            [point_ind, point_coord] = point_info[:2]
 
             if np.linalg.norm(point_coord - np.array([0., 0., 0.])) > 1.e-8:
-                gmsh_order_point_coords.append(point_coord)
+                gmsh_order_point_coords.append(list(point_coord))
+                gmsh_order_point_node_ind.append(point_ind[0])
             else:
                 move_origin = 1
+                origin_ind = point_ind
         
         if move_origin:
             gmsh_order_point_coords.append([0., 0., 0.])
+            gmsh_order_point_node_ind.append(origin_ind[0])
+
+        print(gmsh_order_point_coords)
+        print(gmsh_order_point_node_ind)
+        # exit()
 
         # print(gmsh_order_point_coords)
         # print(np.array([0., 0., 0.]))
         # origin_ind = np.where(gmsh_order_point_coords[:] == np.array([0., 0., 0.]))
         gmsh_order_point_coords = np.array(gmsh_order_point_coords)
+        gmsh_order_point_node_ind = np.array(gmsh_order_point_node_ind)
 
         if coordinate_system is 'polar':
             for i, coords in enumerate(gmsh_order_point_coords):
@@ -719,7 +827,7 @@ class Mesh(object):
                     0.0,
                 ]
 
-        return gmsh_order_point_coords
+        return gmsh_order_point_coords, gmsh_order_point_node_ind
         # we can return the points in the order that GMSH now defines them, in either polar or cartesian
         # need this to relate the point objects to the GMSH defined points
 
@@ -750,8 +858,8 @@ class Mesh(object):
 
         edge_deltas = new_edge_coords - old_edge_coords
         edge_indices = []
-        for i in range(int(len(edge_deltas)/2)):
-            edge_indices.extend([i + 1, i + 1])
+        for i in range(len(edge_deltas)):
+            edge_indices.append(i)
 
         return new_edge_coords, old_edge_coords, edge_deltas, np.array(edge_indices) # need to convert to cartesian
 

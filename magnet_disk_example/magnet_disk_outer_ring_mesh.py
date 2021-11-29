@@ -1,7 +1,7 @@
 import lsdo_mesh.geometry_classes as lm
 import numpy as np
 
-filename = 'magnet_disk_mesh'
+filename = 'magnet_disk_outer_ring_mesh'
 m = lm.Mesh(name=filename, popup=False)
 
 # PARAMETERS
@@ -77,6 +77,8 @@ for i in range(len(magnet_points)):
 # ----------------- ADDING SURFACES -----------------
 outer_ring_surface = lm.Surface([outer_ring_curves], [disk_bound_curves], input_type='curve_loops')
 m.add_entity(outer_ring_surface)
+print(vars(outer_ring_surface))
+# exit()
 
 disk_bound_surface = lm.Surface(disk_bound_curves)
 

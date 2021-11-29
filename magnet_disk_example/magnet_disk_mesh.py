@@ -136,7 +136,7 @@ def generateMeshMovement():
 #print(old_edge_coords)
 #print(new_edge_coords)
 #print(edge_deltas)
-#print(len(new_edge_coords))
+print(generateMeshMovement()[3])
 
 # ------------------ MANUAL TEST ------------------
 if False:  # (can ignore this for now)

@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 '''
 Mesh Generation of 2D Radial Flux PMSM; only half is modeled (180 degrees) due to periodicity
 '''
+
 ''' -------------------- Motor Attributes -------------------- '''
 p       = 8 # pole pairs
 s       = 9 # number of stator slots for windings per 180 degrees

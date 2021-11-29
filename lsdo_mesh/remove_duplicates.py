@@ -64,7 +64,9 @@ def remove_duplicate_curves(curves=None, curve_indices=None ,curve_type=None ,cu
     # FOR CIRCLE ARCS BC THE LAST POINT IS THE CENTER POINT, BUT FOR ALL OTHER CURVES LIKE LINES AND 
     # SPLINES THIS IS NOT THE CASE -----> FIX
 
-    new_curves, new_curve_indices, new_curve_types = combine_curves(curves,curve_indices,curve_type,curve_indices_to_connect)
+    new_curves, new_curve_indices, new_curve_types, new_curve_physical_groups = combine_curves(
+        curves,curve_indices, curve_type, curve_indices_to_connect, curve_physical_groups
+        )
 
     new_surfaces    = np.zeros((len(surfaces),), dtype = int) 
     new_surfaces[:] = surfaces
@@ -73,8 +75,8 @@ def remove_duplicate_curves(curves=None, curve_indices=None ,curve_type=None ,cu
         remove_curve                    = np.where(surfaces == index[1])
         new_surfaces[remove_curve]      = index[0]
 
-        if curve_physical_groups[index[0]]:
-            curve_physical_groups[index[1]] = False
+        # if curve_physical_groups[index[0]]:
+        #     curve_physical_groups[index[1]] = False
         # elif curve_physical_groups[index[1]]:
         #     curve_physical_groups[index[0]] = False
 
@@ -83,11 +85,11 @@ def remove_duplicate_curves(curves=None, curve_indices=None ,curve_type=None ,cu
     unique_surfaces                     = list(set(new_surfaces))
 
     if dummy_curve_type == False:
-        return new_curves, new_curve_indices, new_curve_types, curve_physical_groups, new_surfaces, unique_surfaces
+        return new_curves, new_curve_indices, new_curve_types, new_curve_physical_groups, new_surfaces, unique_surfaces
     elif dummy_curve_type == True:
         return new_curves, new_curve_indices, new_surfaces, unique_surfaces
 
-def combine_curves(curves,curve_indices,curve_type,curve_indices_to_connect):
+def combine_curves(curves, curve_indices,curve_type, curve_indices_to_connect, curve_physical_groups):
     # NEW CURVES
     index_list_unformatted = [list(np.arange(curve_indices[indices[1]][0],curve_indices[indices[1]][1],dtype = int)) for indices in curve_indices_to_connect]
     index_list = [ind for inds_sublist in index_list_unformatted for ind in inds_sublist] # converting from lists within list to a single list of numbers
@@ -95,6 +97,7 @@ def combine_curves(curves,curve_indices,curve_type,curve_indices_to_connect):
     # NEW CURVE INDICES & CURVE TYPES
     temp_new_curve_indices  = np.delete(curve_indices,[indices[1] for indices in curve_indices_to_connect],axis=0) # correct size, wrong indices
     new_curve_types         = np.delete(curve_type,[indices[1] for indices in curve_indices_to_connect],axis=0)
+    new_curve_physical_groups = list(np.delete(curve_physical_groups,[indices[1] for indices in curve_indices_to_connect]))
     
     new_curve_indices       = []
     counter                 = 0
@@ -107,7 +110,7 @@ def combine_curves(curves,curve_indices,curve_type,curve_indices_to_connect):
 
     new_curve_indices       = np.array(new_curve_indices,dtype = int).reshape(len(new_curve_types),2)
 
-    return new_curves, new_curve_indices, new_curve_types
+    return new_curves, new_curve_indices, new_curve_types, new_curve_physical_groups
 
 '''
 NEED TO IMPLEMENT A REMOVE_DUPLICATE_SURFACES

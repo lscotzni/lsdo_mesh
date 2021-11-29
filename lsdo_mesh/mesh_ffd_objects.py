@@ -110,7 +110,7 @@ class Surface(Entity):
         self.children       = list(args)
         self.physical_group = physical_group
         # the format for a physical group is (ind, name) or ind; 
-        self.curve_loops = curve_loop_lengths
+        self.curve_loop_lengths = curve_loop_lengths
 
     def assemble_self(self):
         return self.mesh.add_surface(self.children, self.curve_loop_lengths, self.physical_group)

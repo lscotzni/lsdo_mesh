@@ -129,6 +129,9 @@ edge_indices -= 1
 # TODO: need to make sure the numbering of these two are the same
 print(old_edge_coords) # the node number to coordinates mapping from `lsdo_mesh`
 print(VHAT.tabulate_dof_coordinates()) # the dof to coordinates mapping in `FEniCS`
+print(np.linalg.norm(old_edge_coords - VHAT.tabulate_dof_coordinates()))
+# line above has size mismatch; seems like VHAT.tabulate_dof_coordinates() returns for entire mesh
+exit()
 
 uhat_0.vector()[edge_indices] = edge_deltas
 
@@ -154,6 +157,9 @@ do.plot(B,linewidth=40)
 
 plt.figure(2)
 do.plot(A_z)
+
+plt.figure(3)
+do.plot(mesh)
 
 vtkfile_A_z = do.File('magnet_disk_solutions/Magnetic_Vector_Potential.pvd')
 vtkfile_B = do.File('magnet_disk_solutions/Magnetic_Flux_Density.pvd')
