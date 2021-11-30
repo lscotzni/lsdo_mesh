@@ -108,31 +108,32 @@ def pdeRes(u,v,uhat,num_magnets,Hc):
     return res
 
 ######### Subroutine to move the mesh #################################
-#uhat_0 = do.interpolate(do.Constant([0.5,-0.5]),VHAT) 
-# could be substituted by:
 from magnet_disk_mesh import generateMeshMovement
 
-_, old_edge_coords, edge_deltas, edge_indices = generateMeshMovement()
+#_, old_edge_coords, edge_deltas, edge_indices = generateMeshMovement()
+# We will then manually find the `edge_indices` in FEniCS by KDTree
+_, old_edge_coords, edge_deltas, _ = generateMeshMovement()
 uhat_0 = do.Function(VHAT)
 
-# Reordering the indices according to the `FEniCS` convention, 
-# i.e. [0 1 2 3] for the dofs of the first two nodes
-
-# before: [1 1 2 2 ...]
-for i in range(189):
-    edge_indices[2*i+1] *= 2
-    edge_indices[2*i] *= 2
-    edge_indices[2*i] -= 1
-edge_indices -= 1
-# after: [0 1 2 3 ...]
-
 # TODO: need to make sure the numbering of these two are the same
-print(old_edge_coords) # the node number to coordinates mapping from `lsdo_mesh`
-print(VHAT.tabulate_dof_coordinates()) # the dof to coordinates mapping in `FEniCS`
-print(np.linalg.norm(old_edge_coords - VHAT.tabulate_dof_coordinates()))
-# line above has size mismatch; seems like VHAT.tabulate_dof_coordinates() returns for entire mesh
-exit()
+V0 = do.FunctionSpace(mesh, 'CG', 1)
+coordinates = V0.tabulate_dof_coordinates()
+from scipy.spatial import KDTree
+def findNodeIndices(node_coordinates, coordinates):
+    tree = KDTree(coordinates)
+    dist, node_indices = tree.query(node_coordinates)
+    return node_indices
+    
+node_indices = findNodeIndices(np.reshape(old_edge_coords, (-1,2)), coordinates)
+edge_indices = np.empty(2*len(node_indices))
+for i in range(len(node_indices)):
+    edge_indices[2*i] = 2*node_indices[i]
+    edge_indices[2*i+1] = 2*node_indices[i]+1
+    
+# Verifying the accuracy of the indices
+#print(np.linalg.norm(coordinates[node_indices]-np.reshape(old_edge_coords, (-1,2)), axis=1))
 
+# Assigning the displacements to corresponding dofs of `uhat_0`
 uhat_0.vector()[edge_indices] = edge_deltas
 
 # A facet MeshFunction of dim=mesh.topoloty().dim()-1 is needed to set the BC
@@ -142,28 +143,35 @@ vhat = do.TrialFunction(VHAT)
 a = do.inner(do.grad(uhat), do.grad(vhat))*do.dx
 L = 0
 do.solve(a==L, uhat, bcs=bc_moved)
-
+plt.figure(1)
+do.plot(uhat)
+do.ALE.move(mesh, uhat)
+plt.figure(2)
+do.plot(mesh)
+vtkfile_mesh = do.File('magnet_disk_solutions/mesh_movement.pvd')
+vtkfile_mesh << uhat
+plt.show()
 #######################################################################
 
-pdeRes = pdeRes(A_z,v,uhat,num_magnets,Hc)
-J = do.derivative(pdeRes,A_z)
-do.solve(pdeRes==0,A_z,J=J,bcs=bc_o)
-do.ALE.move(mesh, uhat)
-W       = do.VectorFunctionSpace(mesh,'DG',0)
-B       = do.project(do.as_vector((A_z.dx(1),-A_z.dx(0))),W)
+#pdeRes = pdeRes(A_z,v,uhat,num_magnets,Hc)
+#J = do.derivative(pdeRes,A_z)
+#do.solve(pdeRes==0,A_z,J=J,bcs=bc_o)
+##do.ALE.move(mesh, uhat)
+#W       = do.VectorFunctionSpace(mesh,'DG',0)
+#B       = do.project(do.as_vector((A_z.dx(1),-A_z.dx(0))),W)
 
-plt.figure(1)
-do.plot(B,linewidth=40)
+#plt.figure(1)
+#do.plot(B,linewidth=40)
 
-plt.figure(2)
-do.plot(A_z)
+#plt.figure(2)
+#do.plot(A_z)
 
-plt.figure(3)
-do.plot(mesh)
+#plt.figure(3)
+#do.plot(mesh)
 
-vtkfile_A_z = do.File('magnet_disk_solutions/Magnetic_Vector_Potential.pvd')
-vtkfile_B = do.File('magnet_disk_solutions/Magnetic_Flux_Density.pvd')
-vtkfile_A_z << A_z
-vtkfile_B << B
+#vtkfile_A_z = do.File('magnet_disk_solutions/Magnetic_Vector_Potential.pvd')
+#vtkfile_B = do.File('magnet_disk_solutions/Magnetic_Flux_Density.pvd')
+#vtkfile_A_z << A_z
+#vtkfile_B << B
 
-plt.show()
+#plt.show()
