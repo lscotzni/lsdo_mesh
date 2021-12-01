@@ -129,34 +129,74 @@ edge_indices = np.empty(2*len(node_indices))
 for i in range(len(node_indices)):
     edge_indices[2*i] = 2*node_indices[i]
     edge_indices[2*i+1] = 2*node_indices[i]+1
-    
-# Verifying the accuracy of the indices
-#print(np.linalg.norm(coordinates[node_indices]-np.reshape(old_edge_coords, (-1,2)), axis=1))
 
+# Apply the displacements by multiple steps
+# it seems that only 2 steps is good enough for most of the movements
+# we would meet in the optimization problem.
+STEPS = 2
+increment_deltas = edge_deltas/STEPS
 # Assigning the displacements to corresponding dofs of `uhat_0`
-uhat_0.vector()[edge_indices] = edge_deltas
-
-# A facet MeshFunction of dim=mesh.topoloty().dim()-1 is needed to set the BC
+uhat_0.vector()[edge_indices] = increment_deltas
 bc_moved = do.DirichletBC(VHAT, uhat_0, boundaries_mf, 1000)
 
-vhat = do.TrialFunction(VHAT)
-a = do.inner(do.grad(uhat), do.grad(vhat))*do.dx
-L = 0
-do.solve(a==L, uhat, bcs=bc_moved)
-plt.figure(1)
-do.plot(uhat)
-do.ALE.move(mesh, uhat)
-plt.figure(2)
-do.plot(mesh)
+
+####### Formulation of mesh motion as a hyperelastic problem #######
+
+# Residual for mesh, which satisfies a fictitious elastic problem:
+duhat = do.TestFunction(VHAT)
+I = do.Identity(mesh.geometry().dim())
+F_m = do.grad(uhat) + I
+E_m = 0.5*(F_m.T*F_m - I)
+m_jac_stiff_pow = do.Constant(3)
+# Artificially stiffen the mesh where it is getting crushed:
+K_m = do.Constant(1)/pow(do.det(F_m),m_jac_stiff_pow)
+mu_m = do.Constant(1)/pow(do.det(F_m),m_jac_stiff_pow)
+S_m = K_m*do.tr(E_m)*I + 2.0*mu_m*(E_m - do.tr(E_m)*I/3.0)
+res_m = (do.inner(F_m*S_m,do.grad(duhat)))*dx
+Dres_m = do.derivative(res_m, uhat)
+
+####### Nonlinear solver setup #######
+
+# Nonlinear solver parameters
+REL_TOL_M = 1e-4
+MAX_ITERS_M = 100
+
+# Set up nonlinear problem for mesh motion:
+problem_m = do.NonlinearVariationalProblem(res_m, uhat, 
+                                        bc_moved, Dres_m)
+solver_m = do.NonlinearVariationalSolver(problem_m)
+solver_m.parameters['newton_solver']\
+                   ['maximum_iterations'] = MAX_ITERS_M
+solver_m.parameters['newton_solver']\
+                   ['relative_tolerance'] = REL_TOL_M
+
+for i in range(STEPS):
+    print(80*"=")
+    print("  Step "+str(i))
+    print(80*"=")
+    
+    solver_m.solve()
+    uhat_0.vector()[edge_indices] += increment_deltas
+    
+print(80*"=")
+print('L2 error in the mesh motion solutions on the edges:', 
+            np.linalg.norm(uhat.vector()[edge_indices] - edge_deltas))
+print(80*"=")
+#plt.figure(1)
+#do.plot(uhat)
+#do.ALE.move(mesh, uhat)
+#plt.figure(2)
+#do.plot(mesh)
 vtkfile_mesh = do.File('magnet_disk_solutions/mesh_movement.pvd')
 vtkfile_mesh << uhat
-plt.show()
-#######################################################################
+#plt.show()
+
+######### Formulation of the magnetostatic problem #################
 
 #pdeRes = pdeRes(A_z,v,uhat,num_magnets,Hc)
 #J = do.derivative(pdeRes,A_z)
 #do.solve(pdeRes==0,A_z,J=J,bcs=bc_o)
-##do.ALE.move(mesh, uhat)
+#do.ALE.move(mesh, uhat)
 #W       = do.VectorFunctionSpace(mesh,'DG',0)
 #B       = do.project(do.as_vector((A_z.dx(1),-A_z.dx(0))),W)
 
