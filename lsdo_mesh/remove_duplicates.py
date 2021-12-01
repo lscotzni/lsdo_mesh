@@ -18,14 +18,22 @@ def remove_duplicate_points(points=None, point_mesh_size=None, curves=None, eps=
             if np.linalg.norm(np.array(points[i,:] - points[j,:])) < eps:
                 if j not in point_indices_to_connect:
                     point_indices_to_connect.append((i,j))
-    
-    new_points, new_point_mesh_size = combine_points(points,point_mesh_size,point_indices_to_connect)
-    new_curves = np.zeros(len(curves),dtype = int)
 
+    # consider switching lines 18 and 19 for speed; searches might be faster & no point to calculate
+    # if we don't need to consider the duplicate
+    # print(point_indices_to_connect[:10])
+    print('Completed search of point indices connections.')
+    # print('{} points were connected out of {} points.'.format(len(point_indices_to_connect), len(points)))
+    
+    new_points, new_point_mesh_size = combine_points(points, point_mesh_size, point_indices_to_connect)
+    print('Points combined.')
+
+    new_curves = np.zeros(len(curves), dtype=int)
     for i,new_point in enumerate(new_points):
         for j,point in enumerate(points):
             if np.linalg.norm(point - new_point) < eps:
                 new_curves[j] = curves[i]
+    print('New curves from point removal created.')
 
     if dummy_mesh_size == False:
         return new_points, new_point_mesh_size, new_curves

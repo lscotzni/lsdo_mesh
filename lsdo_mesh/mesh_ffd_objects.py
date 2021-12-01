@@ -186,6 +186,7 @@ class Face(Entity):
 
     def initialize(self, *args, input_type='edges', delta=1.):
         props = self.properties
+        self.parameters = []
         self.embedded_points = []
 
         if isinstance(args[0], Point) or all([isinstance(arg, Point) for arg in args[0]]):
@@ -276,11 +277,17 @@ class Face(Entity):
         return self.mesh.define_face(self.children)
 
     def add_shape_parameter(self, name=None, axis=None, def_type=None):
-        self.parameters = {
-            'name': name,
-            'axis': axis,
-            'type': def_type
-        }
+        self.parameters.append([
+            name,
+            axis,
+            def_type
+        ])
+        # 
+        # self.parameters = {
+        #     'name': name,
+        #     'axis': axis,
+        #     'type': def_type
+        # }
         # need to get parametrization of point based on external vertices
         pts = np.array(self.return_coordinates())
         # we can take the 4 vertices of the face and find the parametric coordinates of
@@ -295,7 +302,7 @@ class Face(Entity):
             P10 = [np.max(pts[:,0]), np.min(pts[:,1])]
             # print(P00, P11, P01, P10)
 
-        return self.parameters
+        # return self.parameters
 
     def add_embedded_points(self, points):
         # this method is so that we can arbitrarily add points

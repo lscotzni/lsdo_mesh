@@ -122,9 +122,16 @@ print(vars(m).keys())
 
 delta = np.zeros((4 * vars(m)['num_ffd_faces'], 2)) # array of deltas applied to FFD FACES
 delta[:8, 1] = 0.25
-delta[:8, 0] = np.pi/8
+for i in range(4):
+    delta[2 * i, 0] = np.pi/10
+    delta[2 * i + 1, 0] = -np.pi/10
+# delta[:8, 0] = np.pi/8
+
 delta[8:, 1] = 0.25
 delta[8:, 0] = 0
+
+print(delta)
+exit()
 
 # above entries (0:8) correspond to magnet in Q1 shifting by pi/8 ccw and radially out by 0.25
 # above entries (8:16) correspond to magnet in Q2 shifting radially out by 0.25

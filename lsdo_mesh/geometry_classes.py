@@ -145,7 +145,6 @@ class Mesh(object):
         if not all([isinstance(entities[0], entity) for entity in entities[1:]]):
             raise KeyError('Inputs must be the same type.')
 
-
     def add_all_entities_to_physical_group(self, geometry_type=None):
 
         if geometry_type is 'points':
@@ -159,6 +158,36 @@ class Mesh(object):
     # --------------------- FFD ---------------------
     def add_face(self, face):
         self.ffd_faces.append(face)
+
+    def assemble_shape_parameter_parametrization(self, coordinate_system='cartesian'):
+        sparse_val, sparse_row, sparse_col = [], [], []
+        for face in self.ffd_faces:
+            print('---')
+            print(vars(face).keys())
+            
+            all_face_shape_parameters = vars(face)['parameters']
+            for parameters in all_face_shape_parameters:
+                # format for parameters: [name, axis, def_type]
+                if parameters[1] is ('x' or 'theta'):
+                    dim = 0 # applied to first coordinate
+                elif parameters[1] is ('y' or 'r'):
+                    dim = 1 # applied to second coordinate
+                
+                if parameters[2] is 'constant':
+                    u = 1
+                elif parameters[2] is 'linear':
+                    u = 1/2
+        1
+        # exit()
+
+        # sparse matrix produced here is of shape:
+        # (num FFD faces * 8, )
+            
+
+
+        
+
+
 
     def assemble_ffd_parametrization(self, coordinate_system='cartesian'):
         
@@ -256,7 +285,6 @@ class Mesh(object):
         print(asdf.shape)
         # exit()
 
-            
     def assemble_edge_parametrization(self, coordinate_system='cartesian'):
         print(' ============ ASSEMBLING EDGE PARAMETRIZATION ============ ')
 
@@ -411,7 +439,6 @@ class Mesh(object):
         # print(node_coords_test.reshape((int(len(node_coords_test)/2), dim)))
         print('---')
         print(node_coords_test)
-        1 
 
     def assemble_mesh_parametrization(self, coordinate_system='cartesian'):
         pass
@@ -446,12 +473,15 @@ class Mesh(object):
 
         self.get_coordinates(coord_sys=coordinate_system) # returns self.mesh_nodes for entire mesh
 
+        # PARAMETRIZATION STEPS
+        self.assemble_shape_parameter_parametrization(coordinate_system=coordinate_system)
+
         self.assemble_ffd_parametrization(coordinate_system=coordinate_system)
 
         self.assemble_edge_parametrization(coordinate_system=coordinate_system)
 
-        self.assemble_mesh_parametrization(coordinate_system=coordinate_system)
-        # long term, line above contains Ru's FEniCS mesh deformatino/regeneration model
+        self.assemble_mesh_parametrization(coordinate_system=coordinate_system) # ---- Ru's work here ----
+        # long term, line above contains Ru's FEniCS mesh deformation/regeneration model
         # for short term, we will separate it
 
         self.create_csdl_model() # this contains the ffd face/edge & mesh movement csdl model classes
@@ -516,12 +546,6 @@ class Mesh(object):
                     ]
                 self.curve_coord_sys[i] = 0
 
-        print('---')
-        print('before:', self.curve_physical_groups)
-        print(len(self.curve_indices))
-        print('---')
-        
-
         # removing duplicate points
         print('Starting removal of duplicate points.')
         self.point_coordinates, self.point_mesh_size, new_curves_temp = remove_duplicate_points(self.point_coordinates,self.point_mesh_size,self.curves)
@@ -533,22 +557,16 @@ class Mesh(object):
             new_curves_temp,self.curve_indices,self.curve_type, self.curve_physical_groups, self.surfaces
         )
         print('Completed removal of duplicate curves.')
-
-        print('---')
-        print('after:', self.curve_physical_groups)
-        print(len(self.curve_indices))
-        print('---')
-        # exit()
         
         
-        print(self.point_coordinates)
-        print(new_curves_temp)
-        print(self.curves)
-        print(self.curve_indices)
-        print(self.surfaces)
-        print(self.surface_curve_loops)
-        print(unique_surfaces)
-        print(self.surface_indices)
+        # print(self.point_coordinates)
+        # print(new_curves_temp)
+        # print(self.curves)
+        # print(self.curve_indices)
+        # print(self.surfaces)
+        # print(self.surface_curve_loops)
+        # print(unique_surfaces)
+        # print(self.surface_indices)
         # exit()
 
 
@@ -587,17 +605,13 @@ class Mesh(object):
         for i, surface in enumerate(self.surface_indices):
             # for ... in <indicator for number of curve loops here>
             curve_loop_lengths = self.surface_curve_loops[i]
-            print(surface)
-            print(curve_loop_lengths)
             gmsh_curve_loops = []
             loop_counter = 0
             for j, loop_size in enumerate(curve_loop_lengths):
                 num_curves_in_loop = loop_size
                 # curve_input = list(self.surfaces[np.arange(surface[0],surface[1])]+1)
                 curve_input = list(self.surfaces[np.arange(surface[0] + loop_counter, surface[0] + loop_counter + loop_size)]+1)
-                print(curve_input)
                 curveloop = occ_kernel.addCurveLoop(curve_input)  # fix the  ccc via Geometry.OCCAutoFix = 0 later
-                print(curveloop)
                 gmsh_curve_loops.append(curveloop)
                 loop_counter += loop_size
             # surface_ind = occ_kernel.addPlaneSurface([curveloop],i+1)
@@ -608,17 +622,12 @@ class Mesh(object):
         # exit()
         
         if not surface_physical_group_indices:
-            print(surface_physical_group_indices)
             surface_physical_group_indices.append(len(self.surface_indices))
         print('Created all surfaces.')
-        print(surface_physical_group_indices)
+
         # EXECUTE SURFACE BOOLEAN OPERATIONS
         surface_bool_physical_group_indices = []
         for i, parameters in enumerate(self.boolean_parameters):
-            print(parameters)
-            print([(parameters[3],self.boolean_entities[j]+1) for j in np.arange(self.boolean_object_indices[i][0],self.boolean_object_indices[i][1])])
-            print([(parameters[3],self.boolean_entities[j]+1) for j in np.arange(self.boolean_tool_indices[i][0],self.boolean_tool_indices[i][1])])
-            print(1 + surface_ind + i)
             
             if parameters[0] == 'subtract':
                 bool_surf = occ_kernel.cut(
@@ -655,8 +664,6 @@ class Mesh(object):
         for i, group in enumerate(self.curve_physical_groups):
             if self.curve_physical_groups[i]:
                 curve_counter += 1
-                print(curve_counter)
-                print(curve_physical_group_indices[curve_counter-1])
                 gmsh.model.addPhysicalGroup(1, [curve_physical_group_indices[curve_counter-1]], group[0])
                 gmsh.model.setPhysicalName(1, group[0], group[1])  
 
@@ -726,8 +733,8 @@ class Mesh(object):
         # print(nodeCoords)
 
         # print('---')
-        # print(self.edge_node_coords)
-        # print(self.edge_node_indices)
+        print(self.edge_node_coords)
+        print(self.edge_node_indices)
         # exit()
         # print('---')
 
@@ -763,6 +770,8 @@ class Mesh(object):
         if self.popup == True:
             gmsh.fltk.run()
         gmsh.finalize()
+        
+        # exit()
 
     # --------------------- MISCELLANEOUS ---------------------
     def get_coordinates(self, coord_sys='cartesian'):
@@ -809,9 +818,6 @@ class Mesh(object):
             gmsh_order_point_coords.append([0., 0., 0.])
             gmsh_order_point_node_ind.append(origin_ind[0])
 
-        print(gmsh_order_point_coords)
-        print(gmsh_order_point_node_ind)
-        # exit()
 
         # print(gmsh_order_point_coords)
         # print(np.array([0., 0., 0.]))
@@ -863,161 +869,3 @@ class Mesh(object):
 
         return new_edge_coords, old_edge_coords, edge_deltas, np.array(edge_indices) # need to convert to cartesian
 
-
-
-# ------------------------------------------- FFD -------------------------------------------
-class FFD(object):
-    def __init__(self):
-        self.entities   = []
-
-        self.vertices       = []
-
-        self.edges          = []
-        self.edge_indices   = []
-        self.edge_type      = []
-
-        self.faces          = []
-        self.face_indices   = []
-        self.face_type      = []
-        self.ffd_grid_steps = []
-
-        self.blocks          = []
-        self.block_indices   = []
-
-    # def add_design_variable(self, dv_name=None, dv1=None, dv1_bounds=None, dv2=None, dv2_bounds=None, dv_type = 'cartesian'):
-    #     # dv_type can vary between cartesian and polar
-    #     # inputs need to be:
-    #     # - design variable directions/axes of interest (so x, y or both) --> corresponds to (r, theta or both) for polar 
-
-    #     pass
-
-    def add_shape_parameter(self, dv_name=None, dv1_bounds=None, dv2_bounds=None, dv_type = 'cartesian'):
-        self.dv_dict = {}
-        axes = []
-        bounds = []
-
-        if dv_type == 'cartesian':
-            pass
-        elif dv_type == 'polar':
-            # dv1_bounds = radius; dv2_bounds = theta
-            if dv1_bounds is not None:
-                axes.append('r')
-                bounds.append(dv1_bounds)
-
-            if dv2_bounds is not None:
-                axes.append('theta')
-                bounds.append(dv2_bounds)
-
-        self.dv_dict['name'] = dv_name
-        self.dv_dict['axes'] = axes
-        self.dv_dict['bounds'] = bounds
-        print(self.dv_dict)
-
-        return(self.dv_dict)
-
-
-    def link_design_variable(self, face, design_variable):
-        pass
-
-    def add_ffd_entity(self, entity, u_p=10, v_p=10):
-        self.entities.append(entity)
-        self.ffd_grid_steps.append([u_p,v_p])
-
-    def create_ffd_grid(self, ffd_grid_steps=None):
-        if ffd_grid_steps is None:
-            ffd_grid_steps = []
-
-        for i, step in enumerate(ffd_grid_steps):
-
-            edges           = self.faces[np.arange(self.face_indices[i,0],self.face_indices[i,1])]
-            face_vertices_ind   = []
-
-            for j, edge in enumerate(edges):
-                vertices    = self.edges[np.arange(self.edge_indices[j,0],self.edge_indices[j,1])]
-                face_vertices_ind.extend(vertices)
-
-            face_vertices_ind_set   = list(set(face_vertices_ind))
-            print(face_vertices_ind)
-
-            face_vertices   = [list(self.vertices[i]) for i in face_vertices_ind]
-            print(face_vertices)
-
-
-    def define_vertex(self, x, y, z):
-        self.vertices.append([x, y, z])
-        return len(self.vertices) - 1
-
-    def define_edge(self, children, edge_type):
-        self.edges.extend([vertex.id for vertex in children])
-        if self.edge_indices == []:
-            self.edge_indices.append([0, len(children)])
-        else:
-            self.edge_indices.append([
-                self.edge_indices[-1][-1],
-                self.edge_indices[-1][-1]  + len(children),
-            ])
-        return len(self.edge_indices) - 1
-
-    def define_face(self, children):
-        self.faces.extend([edge.id for edge in children])
-        if self.face_indices == []:
-            self.face_indices.append([0, len(children)])
-        else:
-            self.face_indices.append([
-                self.face_indices[-1][-1],
-                self.face_indices[-1][-1] + len(children)
-            ])
-
-        return len(self.face_indices) - 1
-
-    def define_block(self):
-        pass
-
-    def assemble(self):
-        for entity in self.entities:
-            print(1)
-            entity.assemble(self)
-
-        self.vertices       = np.array(self.vertices)
-
-        self.edges          = np.array(self.edges)
-        self.edge_indices   = np.array(self.edge_indices)
-        self.edge_type      = np.array(self.edge_type)
-
-        self.faces          = np.array(self.faces)
-        self.face_indices   = np.array(self.face_indices)
-        self.face_type      = np.array(self.face_type)
-        self.ffd_grid_steps = np.array(self.ffd_grid_steps)
-
-        # self.blocks         = np.array(self.blocks)
-        # self.block_indices  = np.array(self.block_indices)
-        # self.block_type     = np.array(self.block_type)
-
-        # removing duplicate vertices
-        self.vertices, self.edges    = remove_duplicate_points(
-            points=self.vertices, 
-            point_mesh_size=None, 
-            curves=self.edges,
-        )
-
-        # removing duplicate edges
-        self.edges, self.edge_indices, self.faces, unique_faces = remove_duplicate_curves(
-            curves=self.edges, 
-            curve_indices=self.edge_indices, 
-            curve_type = None, 
-            surfaces=self.faces,
-        )
-
-        # print('---')
-        # print('vertices:', self.vertices)
-        # print('edges:', self.edges)
-        # print('edge indices:', self.edge_indices)
-        # print('faces:', self.faces)
-        # print('face indices:', self.face_indices)
-        # print('---')
-
-        # ffd_grid    = self.create_ffd_grid(self.ffd_grid_steps)
-
-
-    # NOTE: remove the FFD class
-    # - duplicates are ok, the assemble step is not necessary  (like it is for Mesh)

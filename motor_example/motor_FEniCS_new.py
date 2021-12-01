@@ -62,7 +62,7 @@ domain_bound = Domain_Boundary() # Far-Field Boundary Condition (approaches zero
 semicircle_bound = Periodic_Boundary() # Periodic Boundary Conditions
 # -------------------------------------------------------------------------------------------
 mesh, boundaries_mf, subdomains_mf, association_table = import_mesh(
-    prefix="motor_mesh_full",
+    prefix="motor_mesh_new",
     dim=2,
     subdomains=True
 )
@@ -171,7 +171,7 @@ for i in range(num_magnets):
 
 J_W = JA_N + JA_S + JB_N + JB_S + JC_N + JC_S
 
-L = JM
+L = JM + J_W
 
 a = 0.
 for i in range(46):
