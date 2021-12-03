@@ -4,7 +4,7 @@ import numpy as np
 -------------------- REMOVING DUPLICATE POINTS --------------------
 '''
 
-def remove_duplicate_points(points=None, point_mesh_size=None, curves=None, eps=1.e-8):
+def remove_duplicate_points(points=None, point_mesh_size=None, point_rotate_instance=None, curves=None, eps=1.e-8):
     dummy_mesh_size     = False
 
     # This block is how to deal with code for FFD duplicates (since we don't have a mesh size)
@@ -25,7 +25,7 @@ def remove_duplicate_points(points=None, point_mesh_size=None, curves=None, eps=
     print('Completed search of point indices connections.')
     # print('{} points were connected out of {} points.'.format(len(point_indices_to_connect), len(points)))
     
-    new_points, new_point_mesh_size = combine_points(points, point_mesh_size, point_indices_to_connect)
+    new_points, new_point_mesh_size, new_point_rotate_instances = combine_points(points, point_mesh_size, point_rotate_instance, point_indices_to_connect)
     print('Points combined.')
 
     new_curves = np.zeros(len(curves), dtype=int)
@@ -36,21 +36,22 @@ def remove_duplicate_points(points=None, point_mesh_size=None, curves=None, eps=
     print('New curves from point removal created.')
 
     if dummy_mesh_size == False:
-        return new_points, new_point_mesh_size, new_curves
+        return new_points, new_point_mesh_size, new_point_rotate_instances, new_curves
     elif dummy_mesh_size == True:
         return new_points, new_curves
 
-def combine_points(points,point_mesh_size,point_indices_to_connect):
+def combine_points(points, point_mesh_size, point_rotate_instance, point_indices_to_connect):
     new_points = np.delete(points,[indices[1] for indices in point_indices_to_connect],axis=0)
     new_point_mesh_size = np.delete(point_mesh_size,[indices[1] for indices in point_indices_to_connect],axis=0)
-    return new_points, new_point_mesh_size
+    new_point_rotate_instances = np.delete(point_rotate_instance,[indices[1] for indices in point_indices_to_connect],axis=0)
+    return new_points, new_point_mesh_size, new_point_rotate_instances
 
 #--------------------------------------------------------------------------------
 
 '''
 -------------------- REMOVING DUPLICATE CURVES --------------------
 '''
-def remove_duplicate_curves(curves=None, curve_indices=None ,curve_type=None ,curve_physical_groups=None, surfaces=None):
+def remove_duplicate_curves(curves=None, curve_indices=None, curve_type=None, curve_physical_groups=None, surfaces=None):
     dummy_curve_type     = False
 
     # This block is how to deal with code for FFD duplicates (since we don't have a curve type)

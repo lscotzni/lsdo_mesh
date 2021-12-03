@@ -62,7 +62,7 @@ domain_bound = Domain_Boundary() # Far-Field Boundary Condition (approaches zero
 semicircle_bound = Periodic_Boundary() # Periodic Boundary Conditions
 # -------------------------------------------------------------------------------------------
 mesh, boundaries_mf, subdomains_mf, association_table = import_mesh(
-    prefix="motor_mesh_new",
+    prefix="motor_mesh_1",
     dim=2,
     subdomains=True
 )

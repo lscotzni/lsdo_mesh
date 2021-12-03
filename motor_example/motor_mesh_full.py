@@ -503,15 +503,15 @@ for i in range(len(rotor_inner_surface_p)):
     m.add_face(inner_rotor_f[0])
 
     inner_rotor_f[i].add_shape_parameter(
-    'Inner Rotor Radius', 
-    'r', 
-    'constant' 
+        'Inner Rotor Radius', 
+        'r', 
+        'constant' 
     )
 
     inner_rotor_f[i].add_shape_parameter(
-    'Inner Rotor Angle', 
-    'theta', 
-    'linear' 
+        'Inner Rotor Angle', 
+        'theta', 
+        'linear' 
     )
 
 m.add_all_entities_to_physical_group('curves')

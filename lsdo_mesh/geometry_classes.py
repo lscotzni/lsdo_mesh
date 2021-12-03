@@ -13,19 +13,22 @@ from lsdo_mesh.mesh_ffd_objects import *
 from lsdo_mesh.remove_duplicates import remove_duplicate_points, remove_duplicate_curves
 
 from lsdo_mesh.geometry_operations import rotate
+import os
 
 # ------------------------------------------- MESH -------------------------------------------
 class Mesh(object):
 
-    def __init__(self, name='Mesh', popup=False):
+    def __init__(self, name='Mesh', popup=False, rotation_angles=[0]):
 
-        self.name       = name
-        self.popup      = popup
+        self.name                   = name
+        self.popup                  = popup
+        self.rotation_angles        = rotation_angles
         
         self.top_entities           = []
 
         self.point_coordinates      = []
         self.point_mesh_size        = []
+        self.point_rotate_instance  = []
 
         self.curves                 = []
         self.curve_indices          = []
@@ -65,9 +68,10 @@ class Mesh(object):
         # coordinates is the indicator for either polar or cartesian for full entity
         self.top_entities.append(entity)
 
-    def add_point(self, x, y, z, mesh_size):
+    def add_point(self, x, y, z, mesh_size, rotate_instance):
         self.point_coordinates.append([x, y, z])
         self.point_mesh_size.append(mesh_size)
+        self.point_rotate_instance.append(rotate_instance)
         return len(self.point_coordinates) - 1
 
     def add_curve(self, children, curve_type, coord_sys=None, physical_group=False):
@@ -161,27 +165,66 @@ class Mesh(object):
 
     def assemble_shape_parameter_parametrization(self, coordinate_system='cartesian'):
         sparse_val, sparse_row, sparse_col = [], [], []
-        for face in self.ffd_faces:
+        column_counter = 0
+        for i, face in enumerate(self.ffd_faces):
             print('---')
             print(vars(face).keys())
+
+            # sparse matrix formatting:
+            # for x or theta, we want the odd rows for each set of 8; in python, this is the even rows (0,2,4,6)
+            # for y or r, we want the even rows for each set of 8; in python, this is the odd rows (1,3,5,7)
             
+
             all_face_shape_parameters = vars(face)['parameters']
-            for parameters in all_face_shape_parameters:
+            for j, parameters in enumerate(all_face_shape_parameters):
                 # format for parameters: [name, axis, def_type]
-                if parameters[1] is ('x' or 'theta'):
+                if parameters[1] in ['x', 'theta']:
                     dim = 0 # applied to first coordinate
-                elif parameters[1] is ('y' or 'r'):
+                    sparse_row.extend(list(np.arange(8 * i, 8 * (i+1) - 1, 2)))
+                elif parameters[1] in ['y', 'r']:
                     dim = 1 # applied to second coordinate
+                    sparse_row.extend(list(np.arange(8 * i + 1, 8 * (i+1), 2)))
+
+                print(dim)
                 
                 if parameters[2] is 'constant':
-                    u = 1
+                    col = 1
+                    u   = 1
+                    # contains 1 entry in vector
+                    sparse_val.extend([1] * 4)
+                    sparse_col.extend([column_counter] * 4)
+
                 elif parameters[2] is 'linear':
-                    u = 1/2
+                    col = 2
+                    u   = 1/2  # use negative for one way, positive for the other
+                    # contains 2 entries in vector
+                    if dim == 0:
+                        sparse_col.extend([column_counter, column_counter + 1] * 2)
+                        vec = [-1/2, 1/2, -1/2, 1/2]
+
+                        #  positive direction for x and theta differ, so sign change is made here
+                        if parameters[1] is 'x':
+                            sparse_val.extend(vec)
+                        elif parameters[1] is 'theta':
+                            sparse_val.extend([-1 * entry for entry in vec])
+                    elif dim == 1:
+                        sparse_val.extend([-1/2, -1/2, 1/2, 1/2])
+                        sparse_col.extend([
+                            column_counter, column_counter, column_counter + 1, column_counter + 1,
+                        ])
+
+                column_counter += col
+        print(sparse_val)
+        print(sparse_col)
+        print(sparse_row)
+        self.shape_param_sps_mat = csc_matrix(
+            (sparse_val, (sparse_row, sparse_col)),
+        )
         1
         # exit()
 
         # sparse matrix produced here is of shape:
-        # (num FFD faces * 8, )
+        # (num FFD faces * 8, num shape parameters)
             
 
 
@@ -504,6 +547,7 @@ class Mesh(object):
         # converting to numpy arrays
         self.point_coordinates          = np.array(self.point_coordinates)
         self.point_mesh_size            = np.array(self.point_mesh_size)
+        self.point_rotate_instance      = np.array(self.point_rotate_instance)
         self.point_physical_groups      = np.array(self.point_physical_groups)
 
         self.curves                     = np.array(self.curves)
@@ -548,7 +592,9 @@ class Mesh(object):
 
         # removing duplicate points
         print('Starting removal of duplicate points.')
-        self.point_coordinates, self.point_mesh_size, new_curves_temp = remove_duplicate_points(self.point_coordinates,self.point_mesh_size,self.curves)
+        self.point_coordinates, self.point_mesh_size, self.point_rotate_instance, new_curves_temp = remove_duplicate_points(
+            self.point_coordinates, self.point_mesh_size, self.point_rotate_instance, self.curves, 
+            )
         print('Completed removal of duplicate points.')
 
         # removing duplicate curves
@@ -569,207 +615,214 @@ class Mesh(object):
         # print(self.surface_indices)
         # exit()
 
+        for a, angle in enumerate(self.rotation_angles):
+            point_rotate_instances = list(self.point_rotate_instance)
 
-        gmsh.initialize()
-        gmsh.option.setNumber("General.Terminal",1)
-        gmsh.model.add(self.name) 
-        occ_kernel      = gmsh.model.occ
+            gmsh.initialize()
+            gmsh.option.setNumber("General.Terminal",1)
+            gmsh.model.add(self.name) 
+            occ_kernel      = gmsh.model.occ
 
-        # CREATE POINTS
-        for i, point in enumerate(self.point_coordinates):
-            occ_kernel.addPoint(point[0], point[1], point[2], self.point_mesh_size[i], i + 1)
-        print('Created all points.')
+            # CREATE POINTS
+            for i, point in enumerate(self.point_coordinates):
+                occ_kernel.addPoint(point[0], point[1], point[2], self.point_mesh_size[i], i + 1)
+                if point_rotate_instances[i]:
+                    occ_kernel.rotate([(0, i+1)], 0, 0, 0, 0, 0, 1, angle)
+            print('Created all points.')
 
-        # INSERT BOOLEAN OPERATIONS FOR POINTS
+            # INSERT BOOLEAN OPERATIONS FOR POINTS
 
-        # CREATE CURVES
-        curve_physical_group_indices = []
-        for i, curve in enumerate(self.curve_indices):
-            if self.curve_type[i] == 0: # LINE
-                asdf  =  occ_kernel.addLine(self.curves[curve[0]] + 1, self.curves[curve[1] - 1] + 1, unique_surfaces[i] + 1)
-            elif self.curve_type[i] == 1: # CIRCLE ARC
-                occ_kernel.addCircleArc(self.curves[curve[0]] + 1, self.curves[curve[1] - 1] + 1, self.curves[curve[1] - 2] + 1, unique_surfaces[i] + 1)
-            # else:
-            #     pass
-            if self.curve_physical_groups[i]:
-                curve_physical_group_indices.append(i+1)
+            # CREATE CURVES
+            curve_physical_group_indices = []
+            for i, curve in enumerate(self.curve_indices):
+                if self.curve_type[i] == 0: # LINE
+                    asdf  =  occ_kernel.addLine(self.curves[curve[0]] + 1, self.curves[curve[1] - 1] + 1, unique_surfaces[i] + 1)
+                elif self.curve_type[i] == 1: # CIRCLE ARC
+                    occ_kernel.addCircleArc(self.curves[curve[0]] + 1, self.curves[curve[1] - 1] + 1, self.curves[curve[1] - 2] + 1, unique_surfaces[i] + 1)
+                # else:
+                #     pass
+                if self.curve_physical_groups[i]:
+                    curve_physical_group_indices.append(i+1)
 
-        print('Created all curves.')
+            print('Created all curves.')
 
-        # INSERT BOOLEAN OPERATIONS FOR CURVES
+            # INSERT BOOLEAN OPERATIONS FOR CURVES
 
-        # CREATE CURVE LOOPS
-        
-        # CREATE SURFACES
-        surface_physical_group_indices = []
-        for i, surface in enumerate(self.surface_indices):
-            # for ... in <indicator for number of curve loops here>
-            curve_loop_lengths = self.surface_curve_loops[i]
-            gmsh_curve_loops = []
-            loop_counter = 0
-            for j, loop_size in enumerate(curve_loop_lengths):
-                num_curves_in_loop = loop_size
-                # curve_input = list(self.surfaces[np.arange(surface[0],surface[1])]+1)
-                curve_input = list(self.surfaces[np.arange(surface[0] + loop_counter, surface[0] + loop_counter + loop_size)]+1)
-                curveloop = occ_kernel.addCurveLoop(curve_input)  # fix the  ccc via Geometry.OCCAutoFix = 0 later
-                gmsh_curve_loops.append(curveloop)
-                loop_counter += loop_size
-            # surface_ind = occ_kernel.addPlaneSurface([curveloop],i+1)
-            surface_ind = occ_kernel.addPlaneSurface(gmsh_curve_loops,i+1)
-
-            if self.surface_physical_groups[i]:
-                surface_physical_group_indices.append(i+1)
-        # exit()
-        
-        if not surface_physical_group_indices:
-            surface_physical_group_indices.append(len(self.surface_indices))
-        print('Created all surfaces.')
-
-        # EXECUTE SURFACE BOOLEAN OPERATIONS
-        surface_bool_physical_group_indices = []
-        for i, parameters in enumerate(self.boolean_parameters):
+            # CREATE CURVE LOOPS
             
-            if parameters[0] == 'subtract':
-                bool_surf = occ_kernel.cut(
-                    [(parameters[3],self.boolean_entities[j]+1) for j in np.arange(self.boolean_object_indices[i][0],self.boolean_object_indices[i][1])],
-                    [(parameters[3],self.boolean_entities[j]+1) for j in np.arange(self.boolean_tool_indices[i][0],self.boolean_tool_indices[i][1])],
-                    # 1 + surface_physical_group_indices[-1] + i + 1,
-                    1 + surface_ind + i,
-                    removeObject=self.boolean_remove_object[i],
-                    removeTool=self.boolean_tool_object[i]
-                )
-            else:
-                raise KeyError('operation has not been integrated yet')
-            if self.boolean_surface_physical_groups is not []:
-                if self.boolean_surface_physical_groups[i]:
-                    # surface_bool_physical_group_indices.append(i + 1 + surface_physical_group_indices[-1])
-                    surface_bool_physical_group_indices.append(bool_surf[0][0][1])
+            # CREATE SURFACES
+            surface_physical_group_indices = []
+            for i, surface in enumerate(self.surface_indices):
+                # for ... in <indicator for number of curve loops here>
+                curve_loop_lengths = self.surface_curve_loops[i]
+                gmsh_curve_loops = []
+                loop_counter = 0
+                for j, loop_size in enumerate(curve_loop_lengths):
+                    num_curves_in_loop = loop_size
+                    # curve_input = list(self.surfaces[np.arange(surface[0],surface[1])]+1)
+                    curve_input = list(self.surfaces[np.arange(surface[0] + loop_counter, surface[0] + loop_counter + loop_size)]+1)
+                    curveloop = occ_kernel.addCurveLoop(curve_input)  # fix the  ccc via Geometry.OCCAutoFix = 0 later
+                    gmsh_curve_loops.append(curveloop)
+                    loop_counter += loop_size
+                # surface_ind = occ_kernel.addPlaneSurface([curveloop],i+1)
+                surface_ind = occ_kernel.addPlaneSurface(gmsh_curve_loops,i+1)
 
-        print('Created all boolean surfaces.')
+                if self.surface_physical_groups[i]:
+                    surface_physical_group_indices.append(i+1)
+            # exit()
+            
+            if not surface_physical_group_indices:
+                surface_physical_group_indices.append(len(self.surface_indices))
+            print('Created all surfaces.')
 
-        occ_kernel.synchronize()
- 
-        # NOTE: Physical groups MUST be added AFTER synchronize()
-        # ADD PHYSICAL GROUPS
-
-        curve_counter  = 0
-        # print(curve_physical_group_indices)
-        # print('---')
-        # print(len(self.curve_physical_groups))
-        # print(self.curve_physical_groups)
-        # print(len(self.curve_indices))
-        # print(self.curve_indices)
-        # print('---')
-        # exit()
-        for i, group in enumerate(self.curve_physical_groups):
-            if self.curve_physical_groups[i]:
-                curve_counter += 1
-                gmsh.model.addPhysicalGroup(1, [curve_physical_group_indices[curve_counter-1]], group[0])
-                gmsh.model.setPhysicalName(1, group[0], group[1])  
-
-        surface_counter = 0
-        for i, group in enumerate(self.surface_physical_groups):
-            if self.surface_physical_groups[i]:
-                surface_counter += 1
-                gmsh.model.addPhysicalGroup(2, [surface_physical_group_indices[surface_counter-1]], group[0])
-                gmsh.model.setPhysicalName(2, group[0], group[1])  
-
-        boolean_surface_counter = 0
-        for i, group in enumerate(self.boolean_surface_physical_groups):
-            if self.boolean_surface_physical_groups[i]:
-                boolean_surface_counter += 1
-                gmsh.model.addPhysicalGroup(2, [surface_bool_physical_group_indices[boolean_surface_counter-1]], group[0])
-                gmsh.model.setPhysicalName(2, group[0], group[1])  
-
-        # Code block for adding all entities of a dimension to a physical group
-        if self.all_points_physical_group:
-            pass
-        if self.all_curves_physical_group:
-            all_curves = occ_kernel.getEntities(dim=1)
-            curves = [curve[1] for curve in all_curves]
-            gmsh.model.addPhysicalGroup(1, curves, 1000)
-            gmsh.model.setPhysicalName(1, 1000, 'All Curves')
-
-        if self.all_surfaces_physical_group:
-            pass
-        
-        # Manual for the initial magnet-disk example for Ru
-        if False:
-            gmsh.model.addPhysicalGroup(1, list(np.arange(5,20)), 1000)
-            gmsh.model.setPhysicalName(1, 1000, 'Interior Curves')
-
-        # should make physical groups all in 1 or 2 arrays, with one being the
-        # index, the other being the dimension (can also add names)
-
-        gmsh.model.mesh.generate(2)
-        gmsh.write(self.name +  '.msh')
-
-        # NOTE-S:
-        # USE getEntities(0) TO EXTRACT POINTS INFO OF MESH
-        # USE getNodes(1, ...) TO EXTRACT NODE INFORMATION ON CURVES
-
-        # ------------------------ GETTING POINT INFORMATION ------------------------
-        self.gmsh_point_entities = gmsh.model.getEntities(0)
-        # we hold this information below to identify what order that gmsh orders its points
-        # this can be different from user input b/c of boolean operations & point regeneration
-        self.gmsh_order_point_coords, self.gmsh_order_point_node_ind = self.reorder_points_to_gmsh(coordinate_system='cartesian')
-        self.gmsh_order_point_coords_polar = self.reorder_points_to_gmsh(coordinate_system='polar')[0]
-
-        # ------------------------ GETTING CURVE INFORMATION ------------------------
-        self.gmsh_curve_entities = gmsh.model.getEntities(1) # of the form (1, i)
-        self.edge_node_coords = []
-        self.edge_node_indices = []
-        # for edge parametrization
-        # nodeTags, nodeCoords, nodeParams = gmsh.model.mesh.getNodes(dim=1, tag=5, includeBoundary=True, returnParametricCoord=False)
-        for curve in self.gmsh_curve_entities[:]:
-            info = gmsh.model.mesh.getNodes(dim=1, tag = curve[1], includeBoundary=True, returnParametricCoord=False)
-            # print(info[0][-2:])
-            self.edge_node_coords.append(np.array(info[1]).reshape((int(len(info[1])/3),3)))
-            self.edge_node_indices.append(info[0]) # the node indices along an edge; last two are the start and end nodes
-        # exit()
-
-        # nodeTags, nodeCoords, nodeParams = gmsh.model.mesh.getNodes(dim=1, includeBoundary=True, returnParametricCoord=False)
-        # print(nodeTags)
-        # print(nodeCoords)
-
-        # print('---')
-        print(self.edge_node_coords)
-        print(self.edge_node_indices)
-        # exit()
-        # print('---')
-
-        self.edge_node_coords = np.array(self.edge_node_coords)
-
-        if coordinate_system is 'polar':
-            for i, edge in enumerate(self.edge_node_coords):
-                for j, point in enumerate(edge):
-                    self.edge_node_coords[i][j] = [
-                        np.arctan2(point[1], point[0]),
-                        np.linalg.norm(point[:2]),
-                        0.0
-                    ]
-                # sign check for +/- pi to correct parametrization not done here, but in parametrization step
-
+            # EXECUTE SURFACE BOOLEAN OPERATIONS
+            surface_bool_physical_group_indices = []
+            for i, parameters in enumerate(self.boolean_parameters):
                 
-        #         if np.pi in self.edge_node_coords[i][-2] or np.pi in self.edge_node_coords[i][-1]:
-        #             print(self.edge_node_coords[i])
-        #             pi_ind = np.where(abs(np.pi - self.edge_node_coords[i]) < 1e-8) # gives row and column
-        #             if np.sign(self.edge_node_coords[i][pi_ind[0], pi_ind[1]]) != np.sign(self.edge_node_coords[i][pi_ind[0]-1, pi_ind[1]]):
-        #                 self.edge_node_coords[i][pi_ind[0], pi_ind[1]] -= 2*np.pi
-        #                 print('sign mismatch')
-        #             print('positive')
-        #             print(pi_ind)
+                if parameters[0] == 'subtract':
+                    bool_surf = occ_kernel.cut(
+                        [(parameters[3],self.boolean_entities[j]+1) for j in np.arange(self.boolean_object_indices[i][0],self.boolean_object_indices[i][1])],
+                        [(parameters[3],self.boolean_entities[j]+1) for j in np.arange(self.boolean_tool_indices[i][0],self.boolean_tool_indices[i][1])],
+                        # 1 + surface_physical_group_indices[-1] + i + 1,
+                        1 + surface_ind + i,
+                        removeObject=self.boolean_remove_object[i],
+                        removeTool=self.boolean_tool_object[i]
+                    )
+                else:
+                    raise KeyError('operation has not been integrated yet')
+                if self.boolean_surface_physical_groups is not []:
+                    if self.boolean_surface_physical_groups[i]:
+                        # surface_bool_physical_group_indices.append(i + 1 + surface_physical_group_indices[-1])
+                        surface_bool_physical_group_indices.append(bool_surf[0][0][1])
 
-        #         if -np.pi in self.edge_node_coords[i][-2] or -np.pi in self.edge_node_coords[i][-1]:
-        #             print('negative')
-        # print(self.edge_node_coords[-1])
-        # exit()
+            print('Created all boolean surfaces.')
+
+            occ_kernel.synchronize()
+    
+            # NOTE: Physical groups MUST be added AFTER synchronize()
+            # ADD PHYSICAL GROUPS
+
+            curve_counter  = 0
+            # print(curve_physical_group_indices)
+            # print('---')
+            # print(len(self.curve_physical_groups))
+            # print(self.curve_physical_groups)
+            # print(len(self.curve_indices))
+            # print(self.curve_indices)
+            # print('---')
+            # exit()
+            for i, group in enumerate(self.curve_physical_groups):
+                if self.curve_physical_groups[i]:
+                    curve_counter += 1
+                    gmsh.model.addPhysicalGroup(1, [curve_physical_group_indices[curve_counter-1]], group[0])
+                    gmsh.model.setPhysicalName(1, group[0], group[1])  
+
+            surface_counter = 0
+            for i, group in enumerate(self.surface_physical_groups):
+                if self.surface_physical_groups[i]:
+                    surface_counter += 1
+                    gmsh.model.addPhysicalGroup(2, [surface_physical_group_indices[surface_counter-1]], group[0])
+                    gmsh.model.setPhysicalName(2, group[0], group[1])  
+
+            boolean_surface_counter = 0
+            for i, group in enumerate(self.boolean_surface_physical_groups):
+                if self.boolean_surface_physical_groups[i]:
+                    boolean_surface_counter += 1
+                    gmsh.model.addPhysicalGroup(2, [surface_bool_physical_group_indices[boolean_surface_counter-1]], group[0])
+                    gmsh.model.setPhysicalName(2, group[0], group[1])  
+
+            # Code block for adding all entities of a dimension to a physical group
+            if self.all_points_physical_group:
+                pass
+            if self.all_curves_physical_group:
+                all_curves = occ_kernel.getEntities(dim=1)
+                curves = [curve[1] for curve in all_curves]
+                gmsh.model.addPhysicalGroup(1, curves, 1000)
+                gmsh.model.setPhysicalName(1, 1000, 'All Curves')
+
+            if self.all_surfaces_physical_group:
+                pass
+            
+            # Manual for the initial magnet-disk example for Ru
+            if False:
+                gmsh.model.addPhysicalGroup(1, list(np.arange(5,20)), 1000)
+                gmsh.model.setPhysicalName(1, 1000, 'Interior Curves')
+
+            # should make physical groups all in 1 or 2 arrays, with one being the
+            # index, the other being the dimension (can also add names)
+
+            gmsh.model.mesh.generate(2)
+            gmsh.write(self.name + '_{}.msh'.format(str(a+1)))
+
+            # NOTE-S:
+            # USE getEntities(0) TO EXTRACT POINTS INFO OF MESH
+            # USE getNodes(1, ...) TO EXTRACT NODE INFORMATION ON CURVES
+
+            if a == 0: # this is information we only want once
+                # ------------------------ GETTING POINT INFORMATION ------------------------
+                self.gmsh_point_entities = gmsh.model.getEntities(0)
+                # we hold this information below to identify what order that gmsh orders its points
+                # this can be different from user input b/c of boolean operations & point regeneration
+                self.gmsh_order_point_coords, self.gmsh_order_point_node_ind = self.reorder_points_to_gmsh(coordinate_system='cartesian')
+                self.gmsh_order_point_coords_polar = self.reorder_points_to_gmsh(coordinate_system='polar')[0]
+
+                # ------------------------ GETTING CURVE INFORMATION ------------------------
+                self.gmsh_curve_entities = gmsh.model.getEntities(1) # of the form (1, i)
+                self.edge_node_coords = []
+                self.edge_node_indices = []
+                # for edge parametrization
+                # nodeTags, nodeCoords, nodeParams = gmsh.model.mesh.getNodes(dim=1, tag=5, includeBoundary=True, returnParametricCoord=False)
+                for curve in self.gmsh_curve_entities[:]:
+                    info = gmsh.model.mesh.getNodes(dim=1, tag = curve[1], includeBoundary=True, returnParametricCoord=False)
+                    # print(info[0][-2:])
+                    self.edge_node_coords.append(np.array(info[1]).reshape((int(len(info[1])/3),3)))
+                    self.edge_node_indices.append(info[0]) # the node indices along an edge; last two are the start and end nodes
+                # exit()
+
+                # nodeTags, nodeCoords, nodeParams = gmsh.model.mesh.getNodes(dim=1, includeBoundary=True, returnParametricCoord=False)
+                # print(nodeTags)
+                # print(nodeCoords)
+
+                # print('---')
+                print(self.edge_node_coords)
+                print(self.edge_node_indices)
+                # exit()
+                # print('---')
+
+                self.edge_node_coords = np.array(self.edge_node_coords)
+
+                if coordinate_system is 'polar':
+                    for i, edge in enumerate(self.edge_node_coords):
+                        for j, point in enumerate(edge):
+                            self.edge_node_coords[i][j] = [
+                                np.arctan2(point[1], point[0]),
+                                np.linalg.norm(point[:2]),
+                                0.0
+                            ]
+                        # sign check for +/- pi to correct parametrization not done here, but in parametrization step
+
+                        
+                #         if np.pi in self.edge_node_coords[i][-2] or np.pi in self.edge_node_coords[i][-1]:
+                #             print(self.edge_node_coords[i])
+                #             pi_ind = np.where(abs(np.pi - self.edge_node_coords[i]) < 1e-8) # gives row and column
+                #             if np.sign(self.edge_node_coords[i][pi_ind[0], pi_ind[1]]) != np.sign(self.edge_node_coords[i][pi_ind[0]-1, pi_ind[1]]):
+                #                 self.edge_node_coords[i][pi_ind[0], pi_ind[1]] -= 2*np.pi
+                #                 print('sign mismatch')
+                #             print('positive')
+                #             print(pi_ind)
+
+                #         if -np.pi in self.edge_node_coords[i][-2] or -np.pi in self.edge_node_coords[i][-1]:
+                #             print('negative')
+                # print(self.edge_node_coords[-1])
+                # exit()
 
 
-        # if '-nopopup' not in sys.argv:
-        if self.popup == True:
-            gmsh.fltk.run()
-        gmsh.finalize()
+            # if '-nopopup' not in sys.argv:
+            if self.popup == True:
+                gmsh.fltk.run()
+            gmsh.finalize()
+
+            os.system('python3 msh2xdmf.py -d 2 ' + self.name + '_{}.msh'.format(str(a+1)))
         
         # exit()
 
