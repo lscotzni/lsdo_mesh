@@ -5,12 +5,14 @@ import csdl_om
 from motor_mesh import MotorMeshGenerator
 
 rotor_rotations     = np.array([
-    i * 45 * np.pi / 180 for i in range(2)
+    i * 45 * np.pi / 180 for i in range(1)
 ])
 
 mesh_objects = []
 base_file_name = 'motor_mesh'
 mesh_object = MotorMeshGenerator(rotor_rotations, base_file_name)
+
+csdl_mesh_model = vars(mesh_object)['mesh_model']
 
 # TESTING MESH PARAMETRIZATION DIFFERENCES
 # won't work anymore because of changes
@@ -33,5 +35,3 @@ mesh_2_node_coord_test = edge_sparse_mat.dot(
 
 error = mesh_1_node_coord_test - mesh_2_node_coord_test
 error_norm = np.linalg.norm(error)
-
-1
