@@ -113,7 +113,7 @@ m.add_face(f4)
 
 m.assemble(coordinate_system='polar')
 
-print(vars(m).keys())
+#print(vars(m).keys())
 
 # import os
 # os.system('python3 msh2xdmf.py -d 2 ' + filename + '.msh')
@@ -123,40 +123,46 @@ print(vars(m).keys())
 delta = np.zeros((4 * vars(m)['num_ffd_faces'], 2)) # array of deltas applied to FFD FACES
 delta[:8, 1] = 0.25
 for i in range(4):
-    delta[2 * i, 0] = np.pi/10
-    delta[2 * i + 1, 0] = -np.pi/10
-# delta[:8, 0] = np.pi/8
+    delta[2 * i, 0] = np.pi/36
+    delta[2 * i + 1, 0] = -np.pi/36
+#delta[:8, 0] = np.pi/6
 
 delta[8:, 1] = 0.25
 delta[8:, 0] = 0
 
-print(delta)
-exit()
-
 # above entries (0:8) correspond to magnet in Q1 shifting by pi/8 ccw and radially out by 0.25
 # above entries (8:16) correspond to magnet in Q2 shifting radially out by 0.25
+
+
+# TODO: maybe we no longer need the `edge_indices` from `lsdo_mesh` as we now use KDTree
+# to extract the node indices from FEniCS; and we should only need either `new_edge_coords` 
+# or `edge_deltas`, given that we already have `old_edge_coords`.
+def getInitialEdgeCoords():
+    old_edge_coords = m.get_ffd_edge_old_coords(output_type='cartesian')
+    return old_edge_coords
 def generateMeshMovement():
-    new_edge_coords, old_edge_coords, edge_deltas, edge_indices = m.test_ffd_edge_parametrization_polar(delta, output_type='cartesian')
-    return new_edge_coords, old_edge_coords, edge_deltas, edge_indices
+    edge_deltas= m.test_ffd_edge_parametrization_polar(delta,   
+                                                output_type='cartesian')
+    return edge_deltas
 # outputs of line 132 are the new edge coordinates, old edge coordinates, the delta array and edge indices
 
 #print(old_edge_coords)
 #print(new_edge_coords)
 #print(edge_deltas)
-print(generateMeshMovement()[3])
+#print(generateMeshMovement()[3])
 
 # ------------------ MANUAL TEST ------------------
 if False:  # (can ignore this for now)
     ffd_sparse_mat = vars(m)['ffd_face_sps_mat']
     ordered_coords = vars(m)['gmsh_order_point_coords_polar'][:, :2]
     ordered_coords.reshape((len(ordered_coords)*2,))
-    print(ffd_sparse_mat.shape, delta.shape, ordered_coords.shape)
+#    print(ffd_sparse_mat.shape, delta.shape, ordered_coords.shape)
     new_coords = ffd_sparse_mat.dot(delta.reshape((2 * delta.shape[0],))) + ordered_coords.reshape((2 * ordered_coords.shape[0],))
-    print('---')
-    print(ordered_coords)
-    print(new_coords)
+#    print('---')
+#    print(ordered_coords)
+#    print(new_coords)
 
-    print(- ordered_coords.reshape((2 * ordered_coords.shape[0],)) + new_coords)
+#    print(- ordered_coords.reshape((2 * ordered_coords.shape[0],)) + new_coords)
 
     # EDGE CHECK
     edge_sparse_mat = vars(m)['edge_param_sps_mat']
