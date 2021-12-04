@@ -5,7 +5,7 @@ import csdl_om
 from motor_mesh import MotorMeshGenerator
 
 rotor_rotations     = np.array([
-    i * 45 * np.pi / 180 for i in range(1)
+    i * 45 * np.pi / 180 for i in range(2)
 ])
 
 mesh_objects = []

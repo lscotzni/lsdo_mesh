@@ -13,7 +13,7 @@ Mesh Generation of 2D Radial Flux PMSM
 ''' -------------------- Motor Attributes -------------------- '''
 # p       = 12 # poles per 360 degrees
 # s       = p * 3 # stator slots per 360 degrees
-p       = 5 # poles per 360 degrees
+p       = 2 # poles per 360 degrees
 s       = 3 * p # stator slots per 360 degrees
 m       = 3 # number of phases for stator winding current
 
@@ -52,7 +52,7 @@ RS          = (Rsy+Rout)/2 # # Midpoint to cut air-gap mesh in Stator
 def MotorMeshGenerator(rotation_angle, file_name):
 
     rho         = rotation_angle
-    m           = lm.Mesh(name=file_name, popup=True, rotation_angles=rho)
+    m           = lm.Mesh(name=file_name, popup=False, rotation_angles=rho)
 
     # NOTE: need to fix implementation; the process does not like lists
     # as inputs, but the option to do so makes things easier (especially 
@@ -506,7 +506,15 @@ def MotorMeshGenerator(rotation_angle, file_name):
         'constant'
     )
 
-    m.add_face(inner_rotor_f[0])
+    # m.add_face(inner_rotor_f[0])
+
+    asdf = lm.Face([magnet_air_slot_1_p[0], magnet_air_slot_2_p[0]], input_type='polar')
+    asdf.add_shape_parameter(
+        'magnet_point', 
+        'r', 
+        'constant'
+    )
+    m.add_face(asdf)
 
     m.add_all_entities_to_physical_group('curves')
 

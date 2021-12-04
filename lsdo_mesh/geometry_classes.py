@@ -61,6 +61,9 @@ class Mesh(object):
         self.ffd_face_control_pts   = []
         self.ffd_sparse_param_mat   = []
 
+        self.mesh_points_instances  = [] # holds points of all instances of rotations
+        # length of above variable is equal to number of rotation instances
+        self.ffd_cp_instances       = []
 
     # --------------------- GEOMETRY/MESH ---------------------
     def add_entity(self, entity=None):
@@ -162,11 +165,102 @@ class Mesh(object):
     def add_face(self, face):
         self.ffd_faces.append(face)
 
+    def assemble_ffd_control_points(self, coordinate_system='cartesian'):
+        num_points, dim             = self.gmsh_order_point_coords.shape[0], 2
+        self.num_ffd_faces          = len(self.ffd_faces)
+        self.num_ffd_face_coords    = 4 * dim
+
+        self.ffd_face_control_pts   = np.zeros(
+            (self.num_ffd_face_coords * self.num_ffd_faces, )
+        )
+
+        # LOOP GETTING FFD FACE CP COORDINATES FOR FIRST GEOMETRY (NOT ROTATED)
+        for face_ind, face in enumerate(self.ffd_faces):
+            face_coords     = np.array(face.return_coordinates(coordinate_system)) # reshape((4 * dim)) to vectorize
+
+            # physical coordinates of ffd face vertices
+            # may be good to hold this information in the vertex object
+            # i.e. x1 = [x1_min, x1_max]; x2 = [x2_min, x2_max]
+            P00 = [np.min(face_coords[:,0]), np.min(face_coords[:,1])]
+            P01 = [np.min(face_coords[:,0]), np.max(face_coords[:,1])]
+            P10 = [np.max(face_coords[:,0]), np.min(face_coords[:,1])]
+            P11 = [np.max(face_coords[:,0]), np.max(face_coords[:,1])]
+
+            face_coords = np.array([P00, P10, P01, P11])
+
+            start       = self.num_ffd_face_coords * face_ind
+            end         = start + self.num_ffd_face_coords
+            # in the order of P00, P10, P01, P11
+            self.ffd_face_control_pts[start:end] = face_coords.reshape((dim*len(face_coords), ))
+
+        self.ffd_cp_instances.append(self.ffd_face_control_pts)
+
+        '''
+        WE ARE CREATING COORDINATE INSTANCES OF ALL OF THE FFD CONTROL POINTS FOR ROTATIONS
+        WE NEED TO CHECK WHICH ONES GET ROTATED SO IN THE SECOND LOOP WE 
+        '''
+
+        for a, angle in enumerate(self.rotation_angles):
+            if a == 0:
+                continue
+
+            # ffd_face_control_pts  = np.zeros(
+            #     (self.num_ffd_face_coords * self.num_ffd_faces, )
+            # )
+            ffd_face_control_pts = []
+            ffd_face_control_pts.extend(self.ffd_face_control_pts)
+            # ffd_face_control_pts = self.ffd_face_control_pts[:]
+            for face_ind, face in enumerate(self.ffd_faces):
+                embedded_points = vars(face)['embedded_points']
+
+                if all([vars(embedded_points[i])['rotate_instance'] for i in range(len(embedded_points))]):
+                    print(1)
+                    print(vars(embedded_points[0]))
+                    # exit()
+                    # Coordinates of vertices of individual ffd face
+                    print('--')
+                    print(face.return_coordinates(coordinate_system))
+                    print(vars(face)['face_vertices'])
+                    control_points  = vars(face)['face_vertices']
+                    print(vars(control_points[0])['properties'])
+                    control_points  = rotate(
+                        entities=control_points,
+                        angle=[0., 0., angle],
+                    )
+                    vars(face)['face_vertices'] = control_points
+                    print(vars(face)['face_vertices'])
+                    print(face.return_coordinates(coordinate_system))
+
+                    print(vars(control_points[0])['properties'])
+                    
+                    # exit()
+
+                    face_coords     = np.array(face.return_coordinates(coordinate_system)) # reshape((4 * dim)) to vectorize
+
+                    # physical coordinates of ffd face vertices
+                    # may be good to hold this information in the vertex object
+                    # i.e. x1 = [x1_min, x1_max]; x2 = [x2_min, x2_max]
+                    P00 = [np.min(face_coords[:,0]), np.min(face_coords[:,1])]
+                    P01 = [np.min(face_coords[:,0]), np.max(face_coords[:,1])]
+                    P10 = [np.max(face_coords[:,0]), np.min(face_coords[:,1])]
+                    P11 = [np.max(face_coords[:,0]), np.max(face_coords[:,1])]
+
+                    face_coords = np.array([P00, P10, P01, P11])
+
+                    start       = self.num_ffd_face_coords * face_ind
+                    end         = start + self.num_ffd_face_coords
+                    # in the order of P00, P10, P01, P11
+                    ffd_face_control_pts[start:end] = face_coords.reshape((dim*len(face_coords), ))
+
+            self.ffd_cp_instances.append(ffd_face_control_pts)
+
     # --------------------- ASSEMBLE ---------------------
     def assemble(self, coordinate_system='cartesian'):
         self.assemble_mesh(coordinate_system=coordinate_system)
 
         self.get_coordinates(coord_sys=coordinate_system) # returns self.mesh_nodes for entire mesh
+
+        self.assemble_ffd_control_points(coordinate_system=coordinate_system)
 
         # PARAMETRIZATION STEPS
         self.assemble_shape_parameter_parametrization(coordinate_system=coordinate_system)
@@ -390,12 +484,15 @@ class Mesh(object):
             # USE getEntities(0) TO EXTRACT POINTS INFO OF MESH
             # USE getNodes(1, ...) TO EXTRACT NODE INFORMATION ON CURVES
 
+            # We want the edge and point information of ONLY the initial mesh 
+            # for the parametrization step; we 
+
             if a == 0: # this is information we only want once
                 # ------------------------ GETTING POINT INFORMATION ------------------------
-                self.gmsh_point_entities = gmsh.model.getEntities(0)
+                self.gmsh_point_entities = gmsh.model.getEntities(0) # of the form (0, i)
                 # we hold this information below to identify what order that gmsh orders its points
                 # this can be different from user input b/c of boolean operations & point regeneration
-                self.gmsh_order_point_coords, self.gmsh_order_point_node_ind = self.reorder_points_to_gmsh(coordinate_system='cartesian')
+                self.gmsh_order_point_coords, self.gmsh_order_point_node_ind = self.reorder_points_to_gmsh(coordinate_system='cartesian') # NEED ONLY ONCE
                 self.gmsh_order_point_coords_polar = self.reorder_points_to_gmsh(coordinate_system='polar')[0]
 
                 # ------------------------ GETTING CURVE INFORMATION ------------------------
@@ -515,30 +612,17 @@ class Mesh(object):
         # )
         # num col = # of FFD FACES * 4 * 2 
         # P_new = SPS_MAT * (V - V0) + P0
-        ffd_face_control_pts = np.zeros((num_ffd_face_coords * self.num_ffd_faces, ))
 
         for face_ind, face in enumerate(self.ffd_faces):
-            # Coordinates of vertices of individual ffd face
-            face_coords = np.array(face.return_coordinates(coordinate_system)) # reshape((4 * dim)) to vectorize
-
-            # physical coordinates of ffd face vertices
-            # may be good to hold this information in the vertex object
-            # i.e. x1 = [x1_min, x1_max]; x2 = [x2_min, x2_max]
-            P00 = [np.min(face_coords[:,0]), np.min(face_coords[:,1])]
-            P01 = [np.min(face_coords[:,0]), np.max(face_coords[:,1])]
-            P10 = [np.max(face_coords[:,0]), np.min(face_coords[:,1])]
-            P11 = [np.max(face_coords[:,0]), np.max(face_coords[:,1])]
+            start   = self.num_ffd_face_coords * face_ind
+            end     = self.num_ffd_face_coords * face_ind + num_ffd_face_coords
             
-            face_coords = np.array([P00, P10, P01, P11])
-
-            start = num_ffd_face_coords * face_ind
-            end = num_ffd_face_coords * face_ind + num_ffd_face_coords
-            # in the order of P00, P10, P01, P11
-            ffd_face_control_pts[start:end] = face_coords.reshape((dim*len(face_coords),))
+            # need to extract P00 and P11 from self.ffd_face_control_pts
+            P00     = [self.ffd_face_control_pts[start], self.ffd_face_control_pts[start + 1]]
+            P11     = [self.ffd_face_control_pts[end - 2], self.ffd_face_control_pts[end - 1]]
 
             # loop for the number of children within the face
             embedded_points = vars(face)['embedded_points'] 
-
             for point_ind, point in enumerate(embedded_points):
                 point_coords_to_reorder = np.array(point.return_coordinates(output_type='cartesian'))
                 # print('coord:', point_coords_to_reorder)
@@ -583,14 +667,15 @@ class Mesh(object):
             shape=(num_points * dim, num_ffd_face_coords * self.num_ffd_faces)
         )
 
-        asdf = self.ffd_face_sps_mat.dot(ffd_face_control_pts) # check for whether FFD faces return original points
+        orig_points = self.ffd_face_sps_mat.dot(self.ffd_face_control_pts) # check for whether FFD faces return original points
+        asdf  = self.ffd_face_sps_mat.dot(self.ffd_cp_instances[1]) 
         # other ways to do the above dot product:
         # asdf = np.dot(ffd_face_sps_mat, ffd_face_control_pts)
         # asdf = ffd_face_sps_mat @ ffd_face_control_pts 
         # print('FFD Parametrization check:')
+        # print(orig_points)
         # print(asdf)
-        # print(asdf.shape)
-        # exit()
+        # print(asdf - orig_points) # entries here should return rotation angle (in radians)
     
     def assemble_edge_parametrization(self, coordinate_system='cartesian'):
         # print(' ============ ASSEMBLING EDGE PARAMETRIZATION ============ ')
@@ -773,8 +858,6 @@ class Mesh(object):
         #         edge_parametrization = self.edge_param_sps_mat
         #     )
         # )
-   
-   
    
     # --------------------- MISCELLANEOUS ---------------------
     def get_coordinates(self, coord_sys='cartesian'):
