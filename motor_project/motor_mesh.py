@@ -52,7 +52,7 @@ RS          = (Rsy+Rout)/2 # # Midpoint to cut air-gap mesh in Stator
 def MotorMeshGenerator(rotation_angle, file_name):
 
     rho         = rotation_angle
-    m           = lm.Mesh(name=file_name, popup=False, rotation_angles=rho)
+    m           = lm.Mesh(name=file_name, popup=True, rotation_angles=rho)
 
     # NOTE: need to fix implementation; the process does not like lists
     # as inputs, but the option to do so makes things easier (especially 
