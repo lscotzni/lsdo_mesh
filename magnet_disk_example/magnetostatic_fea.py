@@ -1,62 +1,13 @@
 from dolfin import *
 import numpy as np
 import matplotlib.pyplot as plt
-from petsc4py import PETSc
 from msh2xdmf import import_mesh
 from magnet_disk_mesh import generateMeshMovement, getInitialEdgeCoords
 from piecewise_permeability import *
 from scipy.spatial import KDTree
 
 #set_log_level(1)
-def m2p(A):
-    return as_backend_type(A).mat()
 
-def v2p(v):
-    return as_backend_type(v).vec()
-
-def transpose(A):
-    """
-    Transpose for matrix of DOLFIN type
-    """
-    return PETScMatrix(as_backend_type(A).mat().transpose(PETSc.Mat(MPI.comm_world)))
-
-def computeMatVecProductFwd(A, x):
-    """
-    Compute y = A * x
-    A: ufl form matrix
-    x: ufl function
-    """
-    A_p = m2p(A)
-    y = A_p * v2p(x.vector())
-    y.assemble()
-#    y.ghostUpdate()
-    return y.getArray()
-
-
-def computeMatVecProductBwd(A, R):
-    """
-    Compute y = A.T * R
-    A: ufl form matrix
-    R: ufl function
-    """
-    row, col = m2p(A).getSizes()
-    y = PETSc.Vec().create()
-    y.setSizes(col)
-    y.setUp()
-    m2p(A).multTranspose(v2p(R.vector()),y)
-    y.assemble()
-#    y.ghostUpdate()
-    return y.getArray()
-
-def update(f, f_values):
-    """
-    f: dolfin function
-    f_values: numpy array
-    """
-    f.vector().set_local(f_values)
-    v2p(f.vector()).assemble()
-    v2p(f.vector()).ghostUpdate()
-    
 def findNodeIndices(node_coordinates, coordinates):
     tree = KDTree(coordinates)
     dist, node_indices = tree.query(node_coordinates)
@@ -144,12 +95,6 @@ class MagnetostaticProblem(object):
         self.uhat_old = Function(self.VHAT) # Function to apply the BCs of the mesh motion
         self.A_z = Function(self.V) # Function for the solution of the magnetic vector potential
         self.v = TestFunction(self.V)
-        self.dR = Function(self.V)
-        self.du = Function(self.V)
-        self.duhat = Function(self.VHAT)
-        
-        self.dR_du = derivative(self.resMS(), self.A_z)
-        self.dR_duhat = derivative(self.resMS(), self.uhat)
         
         self.total_dofs_A_z = len(self.A_z.vector().get_local())
         self.total_dofs_uhat = len(self.uhat.vector().get_local())
@@ -201,28 +146,21 @@ class MagnetostaticProblem(object):
                 self.num_magnets,self.Hc,self.vacuum_perm)
         return res_ms
         
-    def setBCMagnetostatic(self):
-        A_outer = Constant(0.0)
-        outer_bound = OuterBoundary()
-        return DirichletBC(self.V, self.A_z, outer_bound)
+    def setBCMagnetostatic(self, expression, subdomain):
+        return DirichletBC(self.V, expression, subdomain)
     
-    def setBCMeshMotion(self, edge_deltas):
-        return DirichletBC(self.VHAT, self.uhat_old, self.boundaries_mf, 1000)
+    def setBCMeshMotion(self, uhat_edge):
+        return DirichletBC(self.VHAT, uhat_edge, self.boundaries_mf, 1000)
 
-    def getDisplacementSteps(self, edge_deltas):
-        STEPS = 2
+    def solveMeshMotion(self, edge_deltas=None, STEPS=2):
+        if edge_deltas is None:
+            edge_deltas = generateMeshMovement()
         max_disp = np.max(np.abs(edge_deltas))
         min_cell_size = self.mesh.hmin()
         min_STEPS = round(max_disp/min_cell_size)
         if min_STEPS >= STEPS:
             STEPS = min_STEPS
-        return STEPS
-        
-    def solveMeshMotion(self, edge_deltas=None, STEPS=2):
-        if edge_deltas is None:
-            edge_deltas = generateMeshMovement()
-
-        STEPS = self.getDisplacementSteps(edge_deltas)
+        print(STEPS)
         self.increment_deltas = edge_deltas/STEPS
         self.edge_deltas = edge_deltas
         
@@ -251,7 +189,7 @@ class MagnetostaticProblem(object):
         
         for i in range(STEPS):
             print(80*"=")
-            print("  FEA: Step "+str(i+1)+" of mesh movement")
+            print("  Step "+str(i+1)+" of mesh movement")
             print(80*"=")
             solver_m.solve()
             self.uhat_old.assign(self.uhat)
@@ -259,63 +197,29 @@ class MagnetostaticProblem(object):
             
             
         print(80*"=")
-        print(' FEA: L2 error of the mesh motion on the edges:', 
+        print('L2 error of the mesh motion on the edges:', 
                     np.linalg.norm(self.uhat.vector()[self.edge_indices]
                                      - self.edge_deltas))
         print(80*"=")
         
-    def solveMagnetostatic(self):
+        
+    def solveMagnetostatic(self, edge_deltas=None):
+        self.solveMeshMotion(edge_deltas=edge_deltas)
         
         ######### Formulation of the magnetostatic problem #################
         
         print(80*"=")
-        print(" FEA: Solving the magnetostatic problem on the deformed mesh")
+        print("  Solving the magnetostatic problem on the deformed mesh")
         print(80*"=")
-        bc_ms = self.setBCMagnetostatic()
-        solve(self.resMS()==0, self.A_z, J=self.dR_du, bcs=bc_ms)
+        res_ms = self.resMS()
+        J = derivative(res_ms,self.A_z)
+        A_outer = Constant(0.0)
+        outer_bound = OuterBoundary()
+        bc_o = self.setBCMagnetostatic(A_outer, outer_bound)
+        solve(res_ms==0,self.A_z,J=J,bcs=bc_o)
         self.B = project(as_vector((self.A_z.dx(1),-self.A_z.dx(0))),
                         VectorFunctionSpace(self.mesh,'DG',0))
 
-    def solveLinearFwd(self, A, dR):
-        """
-        solve linear system dR = dR_du (A) * du
-        """
-        self.dR.vector().set_local(dR)
-        v2p(self.dR.vector()).assemble()
-        v2p(self.dR.vector()).ghostUpdate()
-
-        self.du.vector().set_local(np.zeros(self.local_dof_u))
-        v2p(self.du.vector()).assemble()
-        v2p(self.du.vector()).ghostUpdate()
-    
-        solverFwd = LUSolver("mumps")
-        solverFwd.solve(A, self.du.vector(), self.dR.vector())
-        v2p(self.du.vector()).assemble()
-        v2p(self.du.vector()).ghostUpdate()
-        return self.du.vector().get_local()
-
-    def solveLinearBwd(self, A, du):
-        """
-        solve linear system du = dR_du.T (A_T) * dR
-        """
-        self.du.vector().set_local(du)
-        v2p(self.du.vector()).assemble()
-        v2p(self.du.vector()).ghostUpdate()
-
-        self.dR.vector().set_local(np.zeros(self.local_dof_u))
-        v2p(self.dR.vector()).assemble()
-        v2p(self.dR.vector()).ghostUpdate()
-        
-        A_T = transpose(A)
-
-        solverBwd = LUSolver("mumps")
-        solverBwd.solve(A_T, self.dR.vector(), self.du.vector())
-        v2p(self.dR.vector()).assemble()
-        v2p(self.dR.vector()).ghostUpdate()
-        return self.dR.vector().get_local()
-
-    def moveMesh(self):
-        ALE.move(self.mesh, self.uhat)
 
 if __name__ == "__main__":
     problem = MagnetostaticProblem()
