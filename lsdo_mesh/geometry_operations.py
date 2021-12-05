@@ -54,7 +54,8 @@ def rotate(entities=None, angle=[], center_point = None, copy = True):
         # geometry_type = 
         rotated_points = []
         for point in entities:
-            ms  = list(vars(point)['properties'].values())[3]
+            if isinstance(point, Point):
+                ms  = list(vars(point)['properties'].values())[3]
             p0  = np.array(list(vars(point)['properties'].values())[:3])
 
             rot_matrix = np.array([np.cos(angle[2]), -np.sin(angle[2]), np.sin(angle[2]), np.cos(angle[2])]).reshape((2,2))
@@ -70,7 +71,7 @@ def rotate(entities=None, angle=[], center_point = None, copy = True):
                 if isinstance(first_entity, Point):
                     rotated_points.append(Point(p1[0], p1[1], ms=ms))
                 elif isinstance(first_entity, Vertex):
-                    rotated_points.append(Vertex(p1[0], p1[1], ms=ms))
+                    rotated_points.append(Vertex(p1[0], p1[1]))
             elif copy == False:
                 pass
             

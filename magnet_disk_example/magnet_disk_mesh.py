@@ -2,7 +2,7 @@ import lsdo_mesh.geometry_classes as lm
 import numpy as np
 
 filename = 'magnet_disk_mesh'
-m = lm.Mesh(name=filename, popup=False)
+m = lm.Mesh(name=filename, popup=True)
 
 # PARAMETERS
 rd = 6.e0 # disk radius

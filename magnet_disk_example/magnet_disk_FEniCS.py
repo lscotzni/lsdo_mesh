@@ -12,7 +12,7 @@ vacuum_perm = 4e-7 * np.pi
 
 # MESH IMPORT
 mesh, boundaries_mf, subdomains_mf, association_table = import_mesh(
-    prefix="magnet_disk_mesh",
+    prefix="magnet_disk_mesh_1",
     dim=2,
     subdomains=True
 )
@@ -82,7 +82,7 @@ for i in range(num_magnets):
     Hy = do.Constant((-1)**i * Hc * np.sin(angle))
 
     H = do.as_vector([Hx, Hy])
-    curl_v = do.as_vector([v.dx(1), -v.dx(0)])
+    curl_v = do.as_vector([v.dx(1), -v.dx(0)])  
     Jm += do.inner(H,curl_v)*dx(i+2)
 
 # a       = (1/mu)*do.dot(do.grad(A_z),do.grad(v))*dx

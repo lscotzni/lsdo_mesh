@@ -20,7 +20,7 @@ class Entity(object):
 
 class Point(Entity):
 
-    def initialize(self, *args, ms = 0.1, mode='cartesian', physical_group = False):
+    def initialize(self, *args, ms = 0.1, mode='cartesian', physical_group=False, rotate_instance=False):
         props = self.properties
         if mode is 'cartesian':
             props['x'] = args[0]
@@ -34,9 +34,10 @@ class Point(Entity):
             props['z'] = 0.
         props['ms'] = ms
         self.mode = mode
+        self.rotate_instance = rotate_instance
 
     def assemble_self(self):
-        return self.mesh.add_point(self.properties['x'], self.properties['y'], self.properties['z'], self.properties['ms'])
+        return self.mesh.add_point(self.properties['x'], self.properties['y'], self.properties['z'], self.properties['ms'], self.rotate_instance)
     
     def return_coordinates(self, output_type='cartesian'):
         if output_type is 'cartesian':
