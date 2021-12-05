@@ -1,6 +1,6 @@
 import numpy as np
 import csdl
-import csdl_om
+from csdl_om import Simulator
 
 from motor_mesh import MotorMeshGenerator
 
@@ -13,6 +13,26 @@ base_file_name = 'motor_mesh'
 mesh_object = MotorMeshGenerator(rotor_rotations, base_file_name)
 
 csdl_mesh_model = vars(mesh_object)['mesh_model']
+print(' ------------------------- CSDL MODEL VARIABLE CHECK -------------------------')
+# for key in list(vars(csdl_mesh_model).keys()):
+#     print('-----')
+#     print(key)
+#     print(vars(csdl_mesh_model)[key])
+
+sim = Simulator(csdl_mesh_model)
+sim['shape_parameter_vec'] = np.zeros((3,))
+sim.run()
+print(sim['output'])
+result = sim['output']
+mesh1_length = int(len(result)/2)
+
+asdf  = result[:mesh1_length]  - result[mesh1_length:]
+print(asdf)
+
+
+# print(list(vars(csdl_mesh_model)))
+# print(list(vars(csdl_mesh_model).keys()))
+exit()
 
 # TESTING MESH PARAMETRIZATION DIFFERENCES
 # won't work anymore because of changes

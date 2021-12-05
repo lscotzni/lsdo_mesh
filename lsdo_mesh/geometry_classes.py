@@ -5,6 +5,7 @@ from scipy.linalg import norm
 from scipy.sparse import csc_matrix, csr_matrix, lil_matrix
 import sys
 
+import csdl
 from csdl import Model
 from csdl_om import Simulator
 
@@ -194,7 +195,8 @@ class Mesh(object):
             # in the order of P00, P10, P01, P11
             self.ffd_face_control_pts[start:end] = face_coords.reshape((self.dim * len(face_coords), ))
 
-        self.ffd_cp_instances.append(self.ffd_face_control_pts)
+        # self.ffd_cp_instances.append(self.ffd_face_control_pts)
+        self.ffd_cp_instances.extend(self.ffd_face_control_pts)
 
         '''
         WE ARE CREATING COORDINATE INSTANCES OF ALL OF THE FFD CONTROL POINTS FOR ROTATIONS
@@ -205,9 +207,6 @@ class Mesh(object):
             if a == 0:
                 continue
 
-            # ffd_face_control_pts  = np.zeros(
-            #     (self.num_ffd_face_coords * self.num_ffd_faces, )
-            # )
             ffd_face_control_pts = []
             ffd_face_control_pts.extend(self.ffd_face_control_pts)
             # ffd_face_control_pts = self.ffd_face_control_pts[:]
@@ -215,7 +214,6 @@ class Mesh(object):
                 embedded_points = vars(face)['embedded_points']
 
                 if all([vars(embedded_points[i])['rotate_instance'] for i in range(len(embedded_points))]):
-                    print(1)
                     print(vars(embedded_points[0]))
                     # exit()
                     # Coordinates of vertices of individual ffd face
@@ -233,9 +231,7 @@ class Mesh(object):
                     print(face.return_coordinates(coordinate_system))
 
                     print(vars(control_points[0])['properties'])
-                    
-                    # exit()
-
+                
                     face_coords     = np.array(face.return_coordinates(coordinate_system)) # reshape((4 * dim)) to vectorize
 
                     # physical coordinates of ffd face vertices
@@ -253,7 +249,9 @@ class Mesh(object):
                     # in the order of P00, P10, P01, P11
                     ffd_face_control_pts[start:end] = face_coords.reshape((self.dim * len(face_coords), ))
 
-            self.ffd_cp_instances.append(ffd_face_control_pts)
+            # self.ffd_cp_instances.append(np.array(ffd_face_control_pts))
+            self.ffd_cp_instances.extend(ffd_face_control_pts)
+        self.ffd_cp_instances = np.array(self.ffd_cp_instances)
 
     # --------------------- ASSEMBLE ---------------------
     def assemble(self, coordinate_system='cartesian'):
@@ -489,16 +487,16 @@ class Mesh(object):
 
             # Getting point entities and appending the point instances to a global array
             self.gmsh_point_entities = gmsh.model.getEntities(0) # of the form (0, i)
-            self.mesh_points_instances.append(
+            self.mesh_points_instances.extend(np.array(
                 self.reorder_points_to_gmsh(coordinate_system=coordinate_system)[0][:,:2].reshape((self.num_points * 2, ))
-            )
+            ))
             # For parametrization, we want the edge and point information for ONLY the initial mesh
             if a == 0: # this is information we only want once
                 # ------------------------ GETTING POINT INFORMATION ------------------------
                 # this can be different from user input b/c of boolean operations & point regeneration
                 self.gmsh_order_point_coords, self.gmsh_order_point_node_ind = self.reorder_points_to_gmsh(coordinate_system='cartesian') # NEED ONLY ONCE
-                # self.gmsh_order_point_coords_polar = self.reorder_points_to_gmsh(coordinate_system=coordinate_system)[0]
-                self.gmsh_order_point_coords_polar = self.mesh_points_instances[0]
+                self.gmsh_order_point_coords_polar = self.reorder_points_to_gmsh(coordinate_system=coordinate_system)[0][:,:2].reshape((self.num_points * 2, ))
+                # self.gmsh_order_point_coords_polar = self.mesh_points_instances[0]
                 # above line has variable titled polar, but this refers to the points we will be using from here on out
 
                 # ------------------------ GETTING CURVE INFORMATION ------------------------
@@ -511,7 +509,7 @@ class Mesh(object):
                     self.edge_node_coords.append(np.array(info[1]).reshape((int(len(info[1])/3),3)))
                     self.edge_node_indices.append(info[0]) # the node indices along an edge; last two are the start and end nodes
                 
-                self.edge_node_coords = np.array(self.edge_node_coords)
+                self.edge_node_coords = np.array(self.edge_node_coords) # specify dtype to avoid warning
 
                 if coordinate_system is 'polar':
                     for i, edge in enumerate(self.edge_node_coords):
@@ -528,19 +526,17 @@ class Mesh(object):
             gmsh.finalize()
 
             # os.system('python3 msh2xdmf.py -d 2 ' + self.name + '_{}.msh'.format(str(a+1)))
+        self.mesh_points_instances = np.array(self.mesh_points_instances)
 
     def assemble_shape_parameter_parametrization(self, coordinate_system='cartesian'):
         sparse_val, sparse_row, sparse_col = [], [], []
         column_counter = 0
         for i, face in enumerate(self.ffd_faces):
-            print('---')
-            print(vars(face).keys())
 
             # sparse matrix formatting:
             # for x or theta, we want the odd rows for each set of 8; in python, this is the even rows (0,2,4,6)
             # for y or r, we want the even rows for each set of 8; in python, this is the odd rows (1,3,5,7)
             
-
             all_face_shape_parameters = vars(face)['parameters']
             for j, parameters in enumerate(all_face_shape_parameters):
                 # format for parameters: [name, axis, def_type]
@@ -550,8 +546,6 @@ class Mesh(object):
                 elif parameters[1] in ['y', 'r']:
                     dim = 1 # applied to second coordinate
                     sparse_row.extend(list(np.arange(8 * i + 1, 8 * (i+1), 2)))
-
-                print(dim)
                 
                 if parameters[2] is 'constant':
                     col = 1
@@ -567,7 +561,6 @@ class Mesh(object):
                     if dim == 0:
                         sparse_col.extend([column_counter, column_counter + 1] * 2)
                         vec = [-1/2, 1/2, -1/2, 1/2]
-
                         #  positive direction for x and theta differ, so sign change is made here
                         if parameters[1] is 'x':
                             sparse_val.extend(vec)
@@ -580,18 +573,22 @@ class Mesh(object):
                         ])
 
                 column_counter += col
-        print(sparse_val)
-        print(sparse_col)
-        print(sparse_row)
-        self.shape_param_sps_mat = csc_matrix(
-            (sparse_val, (sparse_row, sparse_col)),
-        )
-        1
-        # exit()
 
         # sparse matrix produced here is of shape:
         # (num FFD faces * 8, num shape parameters)
 
+        print(sparse_val)
+        print(sparse_col)
+        print(sparse_row)
+
+        self.shape_param_sps_mat = csc_matrix(
+            (sparse_val, (sparse_row, sparse_col)),
+            shape=((len(self.ffd_faces) * 8, max(sparse_col) + 1))
+        )
+        print(self.shape_param_sps_mat.toarray())
+        print(self.shape_param_sps_mat.toarray().shape)
+        # exit()
+        
     def assemble_ffd_parametrization(self, coordinate_system='cartesian'):
         
         print(' ============ ASSEMBLING FFD FACE PARAMETRIZATION ============ ')
@@ -621,9 +618,7 @@ class Mesh(object):
             embedded_points = vars(face)['embedded_points'] 
             for point_ind, point in enumerate(embedded_points):
                 point_coords_to_reorder = np.array(point.return_coordinates(output_type='cartesian'))
-                # print('coord:', point_coords_to_reorder)
-                point_coords = point.return_coordinates(coordinate_system)[:2]
-                # print('polar coord:', point_coords)
+                point_coords            = point.return_coordinates(coordinate_system)[:2]
     
                 # might be good to keep this comparison in cartesian coordinates
                 # polar coordinates are tough b/c np.arctan2() returns angle in range [-pi, pi]
@@ -647,17 +642,19 @@ class Mesh(object):
                 sparse_col.extend(np.arange(start, end, dtype=int))
                 sparse_val.extend([
                     (1 - u) * (1 - v),  # P00
-                    (1 - u) * (1 - v),
+                    (1 - u) * (1 - v),  # P00
                     u * (1 - v),        # P10
-                    u * (1 - v),
+                    u * (1 - v),        # P10
                     (1 - u) * v,        # P01
-                    (1 - u) * v,
+                    (1 - u) * v,        # P01
                     u * v,              # P11
-                    u * v,
+                    u * v,              # P11
                 ])
 
+        # OLD METHOD:
         # self.ffd_face_sps_mat[sparse_row, sparse_col] = sparse_val
         # self.ffd_face_sps_mat.tocsc()
+
         self.ffd_face_sps_mat = csc_matrix(
             (sparse_val, (sparse_row, sparse_col)),
             shape=(self.num_points * self.dim, num_ffd_face_coords * self.num_ffd_faces)
@@ -668,6 +665,7 @@ class Mesh(object):
         # other ways to do the above dot product:
         # asdf = np.dot(ffd_face_sps_mat, ffd_face_control_pts)
         # asdf = ffd_face_sps_mat @ ffd_face_control_pts 
+
         # print('FFD Parametrization check:')
         # print(orig_points)
         # print(asdf)
@@ -698,20 +696,11 @@ class Mesh(object):
         # )
         
         # IDENTITY MAP FOR NODES CORRESPONDING TO USER-DEFINED MESH POINTS
-        # KEY NOTE HERE: THE ORIGIN IS ALWAYS THE LAST NODE, SO WE WILL NOT CONSIDER IT
-        # THUS, THE SET OF NODES DEFINING EXACTLY THE POINTS IS EQUAL TO 1: num_points - 1, 
-        # for i in range(1, 2 * (num_points - 1) + 1):
-            # sparse_row.append(i-1)
-            # sparse_col.append(i-1)
-            # sparse_val.append(1)
+        # KEY NOTE HERE: USING ORDER OF GMSH POINTS
         for i, node_ind in enumerate(self.gmsh_order_point_node_ind):
             sparse_row.extend([self.dim * i, self.dim * i + 1])
             sparse_col.extend([self.dim * i, self.dim * i + 1])
             sparse_val.extend([1.0, 1.0])
-
-        # print(sparse_row)
-        # print(sparse_col)
-        # print(sparse_val)
         
         # use self.edge_boundary_nodes and self.edge_node_indices
         for i, edge in enumerate(self.edge_node_indices):
@@ -784,39 +773,27 @@ class Mesh(object):
                     ])
                 else:
                     sparse_val.extend([1 - u[j], u[j]] * 2)
-            1
-
+        # OLD WAY
         # self.edge_param_sps_mat[sparse_row, sparse_col] = sparse_val
         # self.edge_param_sps_mat.tocsc()
-        # print(int((num_edge_nodes + 1) * dim), int((num_points) * dim))
-        # print(len(sparse_val), len(sparse_row), len(sparse_col))
-        # print(max(sparse_row))
+
         self.edge_param_sps_mat = csc_matrix(
             (sparse_val, (sparse_row, sparse_col)),
             shape=(int((num_edge_nodes + 1) * self.dim), int((num_points) * self.dim)),
         )
 
-        # print(self.edge_param_sps_mat.shape)
-        # print(self.gmsh_order_point_coords_polar[:,:2].shape)
-        # TESTING OUTPUT OF APPLYING PARAMETRIZATION MATRIX TO ORIGINAL POINTS
-        node_coords_test = self.edge_param_sps_mat.dot(self.gmsh_order_point_coords_polar[:,:2].reshape((int((self.num_points) * self.dim),)))
+        # ------------ TESTING OUTPUT OF APPLYING PARAMETRIZATION MATRIX TO ORIGINAL POINTS ------------
+        node_coords_test = self.edge_param_sps_mat.dot(self.gmsh_order_point_coords_polar)
         
         # Checking if the application of projection onto our point coordinates properly returns the nodes
         # along edges by looking at error norm with edge node coordinates from GMSH
         error_norm_array = []
         for i, edge_nodes in enumerate(self.edge_node_indices):
             edge_node_coords = np.array(self.edge_node_coords[i])[:,:2].reshape((2 * len(edge_nodes),))
-            for j, node in enumerate(edge_nodes):
-                # print('node:', node)
-                # print(node_coords_test[int(2*(node-1)):int(2*(node-1) + 2)])
-                # print(edge_node_coords[int(2*(j)):int(2*(j) + 2)])
-                # print('---')
-                
+            for j, node in enumerate(edge_nodes):               
                 error = np.array(node_coords_test[int(2*(node-1)):int(2*(node-1) + 2)], dtype=float) - \
                     np.array(edge_node_coords[int(2*(j)):int(2*(j) + 2)], dtype=float)
                 error_norm_array.append(np.linalg.norm(error)) 
-            1
-                # error_norm_array.append(norm(error)) # USING NORM FROM SCIPY (FAILS WITH THE nan)
 
         self.high_error_ind = np.where(np.abs(error_norm_array) > 1e-8)
 
@@ -834,25 +811,113 @@ class Mesh(object):
     def create_csdl_model(self):
         class MeshModel(Model):
             def initialize(self):
+                self.parameters.declare('shape_parametrization')
                 self.parameters.declare('ffd_parametrization')
                 self.parameters.declare('edge_parametrization')
                 self.parameters.declare('mesh_points_instances')
                 self.parameters.declare('ffd_cp_instances')
+                self.parameters.declare('mesh_instances')
+                self.parameters.declare('num_points')
+
 
             def define(self):
+                shape_parametrization   = self.parameters['shape_parametrization']
                 ffd_parametrization     = self.parameters['ffd_parametrization']
                 edge_parametrization    = self.parameters['edge_parametrization']
                 mesh_points_instances   = self.parameters['mesh_points_instances']
-                ffd_cp_instances        = self.parameters('ffd_cp_instances')
+                ffd_cp_instances        = self.parameters['ffd_cp_instances']
+                mesh_instances          = self.parameters['mesh_instances']
+                num_points              = self.parameters['num_points']
+
+                # shape_sps_mat = self.create_input(
+                #     name='shape_sps_mat',
+                #     val=shape_parametrization,
+                #     shape=(shape_parametrization.shape[0], shape_parametrization.shape[1])
+                # )
+
+                # ffd_sps_mat = self.create_input(
+                #     name='ffd_sps_mat',
+                #     val=ffd_parametrization,
+                #     shape=ffd_parametrization.shape
+                # )
+
+                # edge_sps_mat = self.create_input(
+                #     name='edge_sps_mat',
+                #     val=edge_parametrization,
+                #     shape=edge_parametrization.shape
+                # )
+
+                mesh_points_instances = self.create_input(
+                    name='mesh_points_instances',
+                    val=mesh_points_instances,
+                    shape=(len(mesh_points_instances),)
+                ) # size (n,1) for n instances, where each entry holds a numpy array
+                
+                # ffd_control_points = self.create_input(
+                #     name='ffd_control_points_instances',
+                #     val=ffd_cp_instances,
+                #     shape=(len(ffd_cp_instances),)
+                # ) # size (n,1) for n instances, where each entry holds a numpy array
+
+                shape_param_vec = self.create_input(
+                    name='shape_parameter_vec',
+                    shape=(shape_parametrization.shape[1],)
+                )
+
+                delta_ffd_cp = csdl.matvec(shape_parametrization, shape_param_vec) # this line works
+
+                # print(ffd_sps_mat.shape)
+                print(delta_ffd_cp.shape)
+
+                delta_mesh_points = csdl.matvec(ffd_parametrization, delta_ffd_cp) # size mismatch; might not need this line
+                print(mesh_instances)
+                new_points = np.zeros(mesh_points_instances.shape)
+                new_points = self.create_output('output', new_points)
+                print(num_points)
+                print(mesh_points_instances.shape)
+                print(new_points.shape)
+                for i in range(mesh_instances):
+                    print(2*num_points*i)
+                    print(2*num_points*(i+1))
+                    asdf = mesh_points_instances[2*num_points*i:2*num_points*(i+1)]
+                    new_points[2*num_points*i:2*num_points*(i+1)] = asdf + delta_mesh_points
+                    # new_points[2*num_points*i:2*num_points*(i+1)] = delta_mesh_points
+                    # new_points.extend(new_points_instance)
+                # self.print_var(delta_mesh_points)
+                
+                # self.register_output('output', delta_mesh_points)
+                # self.register_output('output', new_points)
+                # exit()
+
+                # new_mesh_pts = csdl.matvec(ffd_sps_mat, new_ffd_cp)
                 
 
+
+
+                # STEPS:
+                # 1. OPTIMIZER OUTPUTS UPDATED SHAPE PARAMETER VALUES
+                # 2. APPLY MAT-VEC PRODUCT BETWEEN SHAPE PARAMETER SPARSE MAT AND SHAPE PARAMETER DELTAS;
+                #       - THEN ADD TO ORIGINAL FFD CPs (FOUND IN ffd_cp_instances)
+                # 3. APPLY MAT-VEC PRODUCT BETWEEN FFD SPARSE MAT AND NEW FFD CPs
+                #       - ADD TO ORIGINAL POINT COORDINATES (FOUND IN mesh_points_instances)
+                # 4. APPLY MAT-VEC PRODUCT BETWEEN EDGE PROJECTION AND NEW POINT COORDINATES
+                #       - PRODUCES LOCATION OF NEW POINTS
+                # CSDL OPERATIONS:
+                # create_input: need to use this for setting the CSDL objects of the parameters  (immutable)
+                # create_output: explicitly computed output (will use this for intermediate calculations)
+                # 
+                # register_output: we will use this to register the final set of edge node coordinates
                 # new_point_location = matvec(ffd_param, ffd_deltas) + original_points
 
+
         self.mesh_model = MeshModel(
+            shape_parametrization = self.shape_param_sps_mat,
             ffd_parametrization = self.ffd_face_sps_mat,
             edge_parametrization = self.edge_param_sps_mat,
             mesh_points_instances = self.mesh_points_instances,
-            ffd_cp_instances = self.ffd_cp_instances
+            ffd_cp_instances = self.ffd_cp_instances,
+            mesh_instances = len(self.rotation_angles),
+            num_points = self.num_points
         )
 
         # retrieve initial points & edge coordinates
@@ -864,6 +929,8 @@ class Mesh(object):
         #         edge_parametrization = self.edge_param_sps_mat
         #     )
         # )
+
+        return self.mesh_model
    
     # --------------------- MISCELLANEOUS ---------------------
     def get_coordinates(self, coord_sys='cartesian'):
@@ -909,10 +976,6 @@ class Mesh(object):
             gmsh_order_point_coords.append([0., 0., 0.])
             gmsh_order_point_node_ind.append(origin_ind[0])
 
-
-        # print(gmsh_order_point_coords)
-        # print(np.array([0., 0., 0.]))
-        # origin_ind = np.where(gmsh_order_point_coords[:] == np.array([0., 0., 0.]))
         gmsh_order_point_coords = np.array(gmsh_order_point_coords)
         gmsh_order_point_node_ind = np.array(gmsh_order_point_node_ind)
 
@@ -931,8 +994,7 @@ class Mesh(object):
     # Ru: seperate the functions for `old_edge_coords` and `edge_deltas` to 
     # make the reusage of the second function more efficient
     def get_ffd_edge_old_coords(self, output_type):
-        ordered_coords = self.gmsh_order_point_coords_polar[:,:2].reshape(
-                            (2 * self.gmsh_order_point_coords_polar.shape[0],))
+        ordered_coords = self.gmsh_order_point_coords_polar
         old_edge_coords = self.edge_param_sps_mat.dot(ordered_coords)
         if output_type is 'cartesian':
             for i in range(int(len(old_edge_coords)/2)):
@@ -948,7 +1010,7 @@ class Mesh(object):
         delta = delta.reshape((2 * delta.shape[0], ))
 
         # --- FFD TEST
-        ordered_coords = self.gmsh_order_point_coords_polar[:,:2].reshape((2 * self.gmsh_order_point_coords_polar.shape[0],))
+        ordered_coords = self.gmsh_order_point_coords_polar
         point_delta = self.ffd_face_sps_mat.dot(delta)
         new_coords = ordered_coords + point_delta
 

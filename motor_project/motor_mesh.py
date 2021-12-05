@@ -508,13 +508,21 @@ def MotorMeshGenerator(rotation_angle, file_name):
 
     # m.add_face(inner_rotor_f[0])
 
-    asdf = lm.Face([magnet_air_slot_1_p[0], magnet_air_slot_2_p[0]], input_type='polar')
-    asdf.add_shape_parameter(
+    aaa = lm.Face([magnet_air_slot_1_p[0], magnet_air_slot_2_p[0]], input_type='polar')
+    aaa.add_shape_parameter(
         'magnet_point', 
         'r', 
         'constant'
     )
-    m.add_face(asdf)
+    m.add_face(aaa)
+
+    bbb = lm.Face([magnet_air_slot_1_p[1], magnet_air_slot_2_p[1]], input_type='polar')
+    bbb.add_shape_parameter(
+        'magnet_point', 
+        'theta', 
+        'linear'
+    )
+    m.add_face(bbb)
 
     m.add_all_entities_to_physical_group('curves')
 
