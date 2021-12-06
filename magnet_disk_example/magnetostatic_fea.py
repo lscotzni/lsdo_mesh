@@ -119,6 +119,7 @@ def pdeRes(u,v,uhat,dx,num_magnets,Hc,vacuum_perm):
     return res
 
 
+
 class OuterBoundary(SubDomain):
     def inside(self, x, on_boundary):
         return on_boundary
@@ -200,7 +201,18 @@ class MagnetostaticProblem(object):
                 self.A_z,self.v,self.uhat,self.dx,
                 self.num_magnets,self.Hc,self.vacuum_perm)
         return res_ms
-        
+    
+    def getFuncAverageSubdomain(self, func, subdomain):
+        func_unit = interpolate(Constant(1.0), func.function_space())
+        integral = assemble(inner(func, func_unit)*self.dx(subdomain))
+        area = assemble(inner(func_unit, func_unit)*self.dx(subdomain))
+        avg_func = integral/area
+        return avg_func
+     
+     # TODO: add the formula of flux linkage using 'getFuncAverageSubdomain' for each magnet
+#    def fluxLinkage(self):
+#        return 
+    
     def setBCMagnetostatic(self):
         A_outer = Constant(0.0)
         outer_bound = OuterBoundary()
@@ -321,13 +333,17 @@ if __name__ == "__main__":
     problem = MagnetostaticProblem()
     problem.solveMeshMotion()
 #    problem.solveMagnetostatic(edge_deltas=np.zeros(len(problem.edge_indices)))
-#    problem.solveMagnetostatic()
-    plt.figure(1)
-    #plot(problem.B, linewidth=40)
-    ALE.move(problem.mesh, problem.uhat)
-    plot(problem.mesh)
+    problem.solveMagnetostatic()
+#    plt.figure(1)
+#    #plot(problem.B, linewidth=40)
+#    ALE.move(problem.mesh, problem.uhat)
+#    plot(problem.A_z)
+#    plot(problem.mesh)
 #    print(problem.A_z.vector().get_local()[:10])
-    plt.show()
+#    plt.show()
+    for i in range(4):
+        print("Average A_z for magnet "+str(i+1))
+        print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+2))
 
 
 
