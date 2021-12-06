@@ -5,15 +5,22 @@ from csdl_om import Simulator
 from magnetostatic_fea import *
 
 class M(Model):
+
+    def initialize(self):
+        print("="*40)
+        print("CSDL: Running initialize()...")
+        print("="*40)
+        self.parameters.declare('fea')
+        
     def define(self):
-        self.fea = fea
+        self.fea = self.parameters['fea']
         self.input_size = self.fea.total_dofs_uhat
         self.output_size = self.fea.total_dofs_A_z
         uhat = self.declare_variable('uhat', 
                         shape=(self.input_size,), 
                         val=np.zeros(self.input_size).reshape(self.input_size,))
 
-        e = MagneticStates()
+        e = MagneticStates(fea=self.fea)
         A_z = csdl.custom(uhat, op=e)
         self.register_output('A_z', A_z)
         
@@ -22,18 +29,18 @@ class MagneticStates(CustomImplicitOperation):
     input: uhat
     output: A_z
     """
-#    def initialize(self):
-#        print("="*40)
-#        print(" Running initialize()...")
-#        print("="*40)
-#        self.parameters.declare('fea')
+    def initialize(self):
+        print("="*40)
+        print("CSDL: Running initialize()...")
+        print("="*40)
+        self.parameters.declare('fea')
         
     def define(self):
         print("="*40)
         print("CSDL: Running define()...")
         print("="*40)
         
-        self.fea = fea
+        self.fea = self.parameters['fea']
         self.input_size = self.fea.total_dofs_uhat
         self.output_size = self.fea.total_dofs_A_z
         self.add_input('uhat', 
@@ -45,8 +52,6 @@ class MagneticStates(CustomImplicitOperation):
         self.declare_derivatives('A_z', 'uhat')       
         self.declare_derivatives('A_z', 'A_z')
         self.bcs = self.fea.setBCMagnetostatic()
-        self.dRdu,_ = assemble_system(self.fea.dR_du, self.fea.resMS(), bcs=self.bcs)
-        self.dRduhat,_ = assemble_system(self.fea.dR_duhat, self.fea.resMS(), bcs=[])
         
     def evaluate_residuals(self, inputs, outputs, residuals):
         print("="*40)
@@ -55,9 +60,9 @@ class MagneticStates(CustomImplicitOperation):
         update(self.fea.uhat, inputs['uhat'])
         update(self.fea.A_z, outputs['A_z'])
         
-        A,B = assemble_system(self.fea.dR_du, self.fea.resMS(), bcs=self.bcs)
-        residuals['A_z'] = B.get_local()
-        self.assemble_jac(inputs, outputs)
+        resMS = assemble(self.fea.resMS())
+        self.bcs.apply(resMS)
+        residuals['A_z'] = resMS.get_local()
     
     def solve_residual_equations(self, inputs, outputs):
         print("="*40)
@@ -70,22 +75,22 @@ class MagneticStates(CustomImplicitOperation):
                
         outputs['A_z'] = self.fea.A_z.vector().get_local()
         update(self.fea.A_z, outputs['A_z'])
-        self.assemble_jac(inputs, outputs)
-    
-    def assemble_jac(self, inputs, outputs):
+        
+    def compute_derivatives(self, inputs, outputs, derivatives):
+        print("="*40)
+        print("CSDL: Running compute_derivatives()...")
+        print("="*40)
         update(self.fea.uhat, inputs['uhat'])
         update(self.fea.A_z, outputs['A_z'])
         
         self.dRdu,_ = assemble_system(self.fea.dR_du, self.fea.resMS(), bcs=self.bcs)
-        self.dRduhat,_ = assemble_system(self.fea.dR_duhat, self.fea.resMS(), bcs=[])
+        self.dRdf,_ = assemble_system(self.fea.dR_duhat, self.fea.resMS(), bcs=[])
         
     def compute_jacvec_product(self, inputs, outputs, 
                                 d_inputs, d_outputs, d_residuals, mode):
         print("="*40)
         print("CSDL: Running compute_jacvec_product()...")
         print("="*40)
-        update(self.fea.uhat, inputs['uhat'])
-        update(self.fea.A_z, outputs['A_z'])
         
         if mode == 'fwd':
             if 'A_z' in d_residuals:
@@ -96,7 +101,7 @@ class MagneticStates(CustomImplicitOperation):
                 if 'uhat' in d_inputs:
                     update(self.fea.duhat, d_inputs['uhat'])
                     d_residuals['A_z'] += computeMatVecProductFwd(
-                            self.dRduhat, self.fea.duhat)
+                            self.dRdf, self.fea.duhat)
 
         if mode == 'rev':
             if 'A_z' in d_residuals:
@@ -106,7 +111,7 @@ class MagneticStates(CustomImplicitOperation):
                             self.dRdu, self.fea.dR)
                 if 'uhat' in d_inputs:
                     d_inputs['uhat'] += computeMatVecProductBwd(
-                            self.dRduhat, self.fea.dR)
+                            self.dRdf, self.fea.dR)
                     
     def apply_inverse_jacobian(self, d_outputs, d_residuals, mode):
         print("="*40)
@@ -123,9 +128,7 @@ class MagneticStates(CustomImplicitOperation):
 if __name__ == "__main__":
     fea = MagnetostaticProblem()
     fea.solveMeshMotion()
-    sim = Simulator(M())
-    print('using default uhat=0.')
-    print('before run, uhat = ', sim['uhat'])
+    sim = Simulator(M(fea=fea))
     sim['uhat'] = fea.uhat.vector().get_local()
     fea.uhat.vector().set_local(sim['uhat'])
     from matplotlib import pyplot as plt
@@ -135,15 +138,13 @@ if __name__ == "__main__":
 #    plt.show()
 
     sim.run()
-#    sim.check_partials()
 #    sim.visualize_implementation()
-    print('after run, uhat = ', sim['uhat'])
-    print('uhat', sim['uhat'].shape)
-    print('after run, A_z =', sim['A_z'])
     fea.A_z.vector().set_local(sim['A_z'])
     plt.figure(2)
     fea.moveMesh()
     plot(fea.A_z)
     plt.show()
+    
+    sim.check_partials()
     
 

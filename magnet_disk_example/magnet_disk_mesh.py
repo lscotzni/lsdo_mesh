@@ -120,15 +120,7 @@ m.assemble(coordinate_system='polar')
 
 ''' ---------------------------------- FFD TEST ---------------------------------- '''
 
-delta = np.zeros((4 * vars(m)['num_ffd_faces'], 2)) # array of deltas applied to FFD FACES
-delta[:8, 1] = 0.25
-for i in range(4):
-    delta[2 * i, 0] = np.pi/36
-    delta[2 * i + 1, 0] = -np.pi/36
-#delta[:8, 0] = np.pi/6
 
-delta[8:, 1] = 0.25
-delta[8:, 0] = 0
 
 # above entries (0:8) correspond to magnet in Q1 shifting by pi/8 ccw and radially out by 0.25
 # above entries (8:16) correspond to magnet in Q2 shifting radially out by 0.25
@@ -140,7 +132,16 @@ delta[8:, 0] = 0
 def getInitialEdgeCoords():
     old_edge_coords = m.get_ffd_edge_old_coords(output_type='cartesian')
     return old_edge_coords
-def generateMeshMovement():
+def generateMeshMovement(angle):
+    delta = np.zeros((4 * vars(m)['num_ffd_faces'], 2)) # array of deltas applied to FFD FACES
+    delta[:8, 1] = 0.25
+    for i in range(4):
+        delta[2 * i, 0] = angle
+        delta[2 * i + 1, 0] = -angle
+    #delta[:8, 0] = np.pi/6
+
+    delta[8:, 1] = 0.25
+    delta[8:, 0] = 0
     edge_deltas= m.test_ffd_edge_parametrization_polar(delta,   
                                                 output_type='cartesian')
     return edge_deltas
