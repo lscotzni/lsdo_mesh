@@ -77,16 +77,16 @@ def RelativePermeability(subdomain, u, uhat):
         B = as_vector((gradu[1], -gradu[0]))
         norm_B = sqrt(dot(B, B) + DOLFIN_EPS)
         
-        mu = conditional(
-            lt(norm_B, 1.004),
-            linearPortion(norm_B),
-            conditional(
-                lt(norm_B, 1.433),
-                cubicPortion(norm_B),
-                (expA * exp(expB*norm_B + expC) + 1)
-            )
-        )
-        # mu = 4000. # constant case
+        # mu = conditional(
+        #     lt(norm_B, 1.004),
+        #     linearPortion(norm_B),
+        #     conditional(
+        #         lt(norm_B, 1.433),
+        #         cubicPortion(norm_B),
+        #         (expA * exp(expB*norm_B + expC) + 1)
+        #     )
+        # )
+        mu = 4000. # constant case
     elif subdomain == 3: # TITANIUM
         mu = 1.00 # insert value for titanium or shaft material
     elif subdomain >= 4 and subdomain <= 28: # AIR
@@ -166,7 +166,7 @@ class MagnetostaticProblem(object):
     """
     Preprocessor to set up the mesh and mesh functions
     """  
-    def __init__(self, mesh_file="motor_mesh_test_1"):
+    def __init__(self, mesh_file="motor_mesh_1"):
 
         self.mesh_file = mesh_file
         self.initMesh()
@@ -332,6 +332,7 @@ class MagnetostaticProblem(object):
         solver_ms.solve()
         self.B = project(as_vector((self.A_z.dx(1),-self.A_z.dx(0))),
                         VectorFunctionSpace(self.mesh,'DG',0))
+        
 
     def solveLinearFwd(self, A, dR):
         """
@@ -379,8 +380,8 @@ if __name__ == "__main__":
     # problem.solveMeshMotion()
     problem.solveMagnetostatic()
     plt.figure(1)
-    plot(problem.A_z)
-    # plot(problem.B, linewidth=40)
+    # plot(problem.A_z)
+    plot(problem.B, linewidth=40)
 #    ALE.move(problem.mesh, problem.uhat)
 #     plot(problem.mesh)
 #    print(problem.A_z.vector().get_local()[:10])

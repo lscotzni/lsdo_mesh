@@ -2,113 +2,72 @@ import numpy as np
 import csdl
 from csdl import Model
 from csdl_om import Simulator
-from d_q_transform_model import DQTransformModel
 
-class FluxLinkageModel(Model): # could also call Battery Model?
-    def initialize(self):
-        self.parameters.declare('theta')
-        self.parameters.declare('flux_linkage_abc')
-
+class FluxLinkageModel(Model):
     def define(self):
-        # theta               = self.parameters['theta']
-        # flux_linkage_abc    = self.parameters['flux_linkage_abc']
+        s = 36
+        motor_length = self.create_input(name='motor_length')
+        num_windings = self.create_input(name='num_windings')
 
-        theta  = self.create_input(
-            name='theta',
-            val=0.,
+        mag_vec_pot_stator_teeth = self.create_input(
+            name='mag_vec_pot_stator_teeth',
+            shape=(2*s,)
+        )
+        # THIS HOLDS THE AVERAGE MAGNETIC VECTOR POTENTIAL VALUE IN A WINDING
+        # WE NEED TO TAKE THE DELTA
 
+        mag_vec_pot_a_list =  self.create_input(
+            name='mag_vec_pot_a_list',
+            shape=(int(2*s/3),)
         )
 
-        flux_linkage_abc  = self.create_input(
-            name='flux_linkage_abc',
-            shape=(3,)
+        mag_vec_pot_b_list =  self.create_input(
+            name='mag_vec_pot_b_list',
+            shape=(int(2*s/3),)
         )
 
-        phase_current_abc  = self.create_input(
-            name='phase_current_abc',
-            shape=(3,)
+        mag_vec_pot_c_list =  self.create_input(
+            name='mag_vec_pot_c_list',
+            shape=(int(2*s/3),)
         )
 
-        wire_resistance = self.create_input(
-            name='wire_resistance',
-            shape=(1,1)
+
+        flux_linkage_a_list =  self.create_output(
+            name='flux_linkage_a_list',
+            shape=(int(s/3),)
         )
 
-        # transform_matrix_forward = 2/3 * np.array([
-        #     np.cos(theta), 
-        #     np.cos(theta - 2*np.pi/3), 
-        #     np.cos(theta + 2*np.pi/3),
-        #     -np.sin(theta),
-        #     -np.sin(theta - 2*np.pi/3),
-        #     -np.sin(theta + 2*np.pi/3),
-        # ]).reshape((2,3))
-
-        # transform_matrix_forward = self.declare_variable(
-        #     name='transform_matrix_forward',
-        #     val=transform_matrix_forward,
-        #     shape=transform_matrix_forward.shape
-        # )
-
-        transform_matrix_forward = self.create_output(
-            name='transform_matrix_forward',
-            shape=(2,3)
+        flux_linkage_b_list =  self.create_output(
+            name='flux_linkage_b_list',
+            shape=(int(s/3),)
         )
 
-        transform_matrix_forward[0] = csdl.cos(theta)
-        transform_matrix_forward[1] = csdl.cos(theta - 2*np.pi/3)
-        transform_matrix_forward[2] = csdl.cos(theta + 2*np.pi/3)
-        transform_matrix_forward[3] = -csdl.sin(theta)
-        transform_matrix_forward[4] = -csdl.sin(theta - 2*np.pi/3)
-        transform_matrix_forward[5] = -csdl.sin(theta + 2*np.pi/3)
-        
-        
-        # transform_matrix_reverse = np.array([
-        #     np.cos(theta), 
-        #     -np.sin(theta),
-        #     np.cos(theta - 2*np.pi/3),
-        #     -np.sin(theta - 2*np.pi/3), 
-        #     np.cos(theta + 2*np.pi/3),
-        #     -np.sin(theta + 2*np.pi/3),
-        # ]).reshape((3,2))
-        # transform_matrix_reverse = self.declare_variable(
-        #     name='transform_matrix_reverse',
-        #     val=transform_matrix_reverse,
-        #     shape=transform_matrix_reverse.shape
-        # )
-
-        # flux_linkage_abc = self.declare_variable(
-        #     name='flux_linkage_abc',
-        #     val=flux_linkage_abc,
-        #     shape=flux_linkage_abc.shape
-        # )
-
-        flux_linkage_dq = self.register_output(
-            name='flux_linkage_dq',
-            var=csdl.matvec(transform_matrix_forward, flux_linkage_abc)
+        flux_linkage_c_list =  self.create_output(
+            name='flux_linkage_c_list',
+            shape=(int(s/3),)
         )
 
-        phase_current_dq = self.register_output(
-            name='phase_current_dq',
-            var=csdl.matvec(transform_matrix_forward, phase_current_abc)
-        )
+        for i in range(int(s/3)): # need absolute values around these; might be better to find absolute deltas outside
+            flux_linkage_a_list[i] = mag_vec_pot_a_list[2*i + 1] - mag_vec_pot_a_list[2*i]
+            flux_linkage_b_list[i] = mag_vec_pot_b_list[2*i + 1] - mag_vec_pot_b_list[2*i]
+            flux_linkage_c_list[i] = mag_vec_pot_c_list[2*i + 1] - mag_vec_pot_c_list[2*i]
 
-        # resistance_matrix_dq = self.create_output(
-        #     name='resistance_matrix_dq',
-        #     shape=(2,2)
-        # )
+        if False:
+            for i in range(int(s/3)):
+                if (i+1)%3 == 1: # PHASE A
+                    for j in range(3):
+                        flux_linkage_a_list[i] = 1
+                    # 6*i to 6*i + 6
+                    
+                elif (i+1)%3 == 2: # PHASE B
+                    for j in range(3):
+                        flux_linkage_a_list[i] = 1
+                    # 6*i to 6*i + 6
+                    
+                elif (i+1)%3 == 0: # PHASE C
+                    for j in range(3):
+                        flux_linkage_a_list[i] = 1
+                    # 6*i to 6*i + 6
+                
 
-        # resistance_matrix_dq[0,1] = wire_resistance
-        # resistance_matrix_dq[1,0] = wire_resistance
 
-
-if __name__ == '__main__':
-    aaa = FluxLinkageModel(
-        theta = 0,
-        flux_linkage_abc = np.array([1., 1., 1.])
-    )
-
-    sim = Simulator(aaa)
-    print(sim['transform_matrix_forward'])
-    print(sim['flux_linkage_dq'])
-    print(sim['phase_current_dq'])
-    # print(sim['resistance_matrix_dq'])
