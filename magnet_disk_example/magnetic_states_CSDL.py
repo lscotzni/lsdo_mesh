@@ -83,15 +83,15 @@ class MagneticStates(CustomImplicitOperation):
         update(self.fea.uhat, inputs['uhat'])
         update(self.fea.A_z, outputs['A_z'])
         
-        self.dRdu,_ = assemble_system(self.fea.dR_du, self.fea.resMS(), bcs=self.bcs)
-        self.dRdf,_ = assemble_system(self.fea.dR_duhat, self.fea.resMS(), bcs=[])
+        self.dRdu = assemble(self.fea.dR_du)
+        self.dRdf = assemble(self.fea.dR_duhat)
+        self.A,_ = assemble_system(self.fea.dR_du, self.fea.resMS(), bcs=self.bcs)
         
     def compute_jacvec_product(self, inputs, outputs, 
                                 d_inputs, d_outputs, d_residuals, mode):
         print("="*40)
         print("CSDL: Running compute_jacvec_product()...")
         print("="*40)
-        
         if mode == 'fwd':
             if 'A_z' in d_residuals:
                 if 'A_z' in d_outputs:
@@ -119,9 +119,9 @@ class MagneticStates(CustomImplicitOperation):
         print("="*40)
         
         if mode == 'fwd':
-            d_outputs['A_z'] = self.fea.solveLinearFwd(self.dRdu, d_residuals['A_z'])
+            d_outputs['A_z'] = self.fea.solveLinearFwd(self.A, d_residuals['A_z'])
         else:
-            d_residuals['A_z'] = self.fea.solveLinearBwd(self.dRdu, d_outputs['A_z'])
+            d_residuals['A_z'] = self.fea.solveLinearBwd(self.A, d_outputs['A_z'])
             
 
             
@@ -129,14 +129,21 @@ if __name__ == "__main__":
     fea = MagnetostaticProblem()
     fea.solveMeshMotion()
     sim = Simulator(M(fea=fea))
-    sim['uhat'] = fea.uhat.vector().get_local()
-    fea.uhat.vector().set_local(sim['uhat'])
     from matplotlib import pyplot as plt
 #    plt.figure(1)
 #    fea.moveMesh()
 #    plot(fea.mesh)
 #    plt.show()
 
+<<<<<<< HEAD
+#    sim.run()
+##    sim.visualize_implementation()
+#    fea.A_z.vector().set_local(sim['A_z'])
+#    plt.figure(2)
+#    fea.moveMesh()
+#    plot(fea.A_z)
+#    plt.show()
+=======
     sim.run()
 #    sim.visualize_implementation()
     fea.A_z.vector().set_local(sim['A_z'])
@@ -147,6 +154,7 @@ if __name__ == "__main__":
     plot(fea.subdomains_mf)
     plt.show()
     exit()
+>>>>>>> 47c80de7c052fdb67a7a0905f727bff27ab7b007
     
     sim.check_partials()
     
