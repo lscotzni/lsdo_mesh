@@ -65,7 +65,10 @@ class MeshMotion(CustomImplicitOperation):
         self.updateMeshMotionBC(inputs)
         update(self.fea.uhat, outputs['uhat'])
         resM = assemble(self.fea.resM())
-        self.bcs.apply(resM)
+        uhat_0 = Function(self.fea.VHAT)
+        uhat_0.assign(self.fea.uhat)
+        self.bcs.apply(resM, uhat_0.vector())
+        
         residuals['uhat'] = resM.get_local()
     
     def solve_residual_equations(self, inputs, outputs):
@@ -88,17 +91,24 @@ class MeshMotion(CustomImplicitOperation):
         self.updateMeshMotionBC(inputs)
         update(self.fea.uhat, outputs['uhat'])
         
-        self.dRdu,_ = assemble_system(self.fea.dRm_duhat, 
-                                        self.fea.resM(), 
-                                        bcs=self.bcs)
+#        self.dRdu,_ = assemble_system(self.fea.dRm_duhat, 
+#                                        self.fea.resM(), 
+#                                        bcs=self.bcs)
+        self.dRdu = assemble(self.fea.dRm_duhat)
+        self.bcs.apply(self.dRdu)
         self.dRdf = convertToDense(self.fea.getBCDerivatives())
+#        for i in range(len(self.fea.edge_indices)):
+#            row = self.fea.edge_indices[i].astype('int')
+#            col = i
+#            print(row, col)
+#            print(self.dRdf[row][col])
         
     def compute_jacvec_product(self, inputs, outputs, 
                                 d_inputs, d_outputs, d_residuals, mode):
         print("="*40)
         print("CSDL: Running compute_jacvec_product()...")
         print("="*40)
-        
+#        exit()
         if mode == 'fwd':
             if 'uhat' in d_residuals:
                 if 'uhat' in d_outputs:
@@ -139,15 +149,16 @@ class MeshMotion(CustomImplicitOperation):
 if __name__ == "__main__":
     fea = MagnetostaticProblem()
     sim = Simulator(M(fea=fea))
-    sim['edge_deltas'] = generateMeshMovement(-pi/36)
-    sim.run()
     
-    fea.uhat.vector().set_local(sim['uhat'])
-    plt.figure(1)
-    fea.moveMesh()
-    plot(fea.mesh)
-    plt.show()
+#    sim['edge_deltas'] = generateMeshMovement(-pi/36)
+#    sim.run()
+    
+#    fea.uhat.vector().set_local(sim['uhat'])
+#    plt.figure(1)
+#    fea.moveMesh()
+#    plot(fea.mesh)
+#    plt.show()
     
     
     # TODO: the partial derivative of residual wrt edge_deltas is not correct
-#    sim.check_partials()
+    sim.check_partials()
