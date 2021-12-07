@@ -4,7 +4,7 @@ from csdl import Model
 from csdl_om import Simulator
 # from d_q_transform_model import DQTransformModel
 
-class InputPowerModel(Model): # could also call Battery Model?
+class ElectricalModel(Model): # could also call Battery Model?
     def initialize(self):
         self.parameters.declare('theta')
         self.parameters.declare('flux_linkage_abc')
@@ -14,8 +14,10 @@ class InputPowerModel(Model): # could also call Battery Model?
         # flux_linkage_abc    = self.parameters['flux_linkage_abc']
 
         # -------------------- INPUTS TO MODEL --------------------
+        p = 12
+        torque_scale = self.create_input(name='torque_scale', val=3/2*p/2)
         theta  = self.create_input(name='theta', val=0.)
-        omega = self.create_input(name='omega', val = 1)
+        omega = self.declare_variable(name='omega', val = 1)
         flux_linkage_abc  = self.create_input(name='flux_linkage_abc', shape=(3,))
         phase_current_abc  = self.create_input(name='phase_current_abc', shape=(3,))
 
@@ -84,10 +86,15 @@ class InputPowerModel(Model): # could also call Battery Model?
             var=csdl.dot(phase_voltage_abc, phase_current_abc)
         )
 
+        output_torque = self.register_output(
+            name='output_torque',
+            var=torque_scale*(flux_linkage_dq[0]*phase_current_dq[1] - flux_linkage_dq[1]*phase_current_dq[0])
+        )
+
 
 
 if __name__ == '__main__':
-    aaa = InputPowerModel(
+    aaa = ElectricalModel(
         theta = 0,
         flux_linkage_abc = np.array([1., 1., 1.])
     )

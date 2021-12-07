@@ -142,8 +142,11 @@ if __name__ == "__main__":
     fea.A_z.vector().set_local(sim['A_z'])
     plt.figure(2)
     fea.moveMesh()
-    plot(fea.A_z)
+    # plot(fea.A_z)
+    plot(fea.mesh, linewidth=0.5)
+    plot(fea.subdomains_mf)
     plt.show()
+    exit()
     
     sim.check_partials()
     
