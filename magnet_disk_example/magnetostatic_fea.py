@@ -261,37 +261,20 @@ class MagnetostaticProblem(object):
         print("="*40)
         
 
-        self.setUpMeshMotionSolver()
-        bc_m = self.setBCMeshMotion()
-        dRm_duhat = assemble(self.dRm_duhat)
-        bc_m.apply(dRm_duhat)
-        dRm_duhat_petsc = m2p(dRm_duhat)
-        row, _ = dRm_duhat_petsc.getSize()
+#        self.setUpMeshMotionSolver()
+#        bc_m = self.setBCMeshMotion()
+#        dRm_duhat = assemble(self.dRm_duhat)
+#        bc_m.apply(dRm_duhat)
+#        dRm_duhat_petsc = m2p(dRm_duhat)
+#        row, _ = dRm_duhat_petsc.getSize()
+        row = self.total_dofs_uhat
         col = len(self.edge_indices)
-        dRm_dedge = zero_petsc_mat(row, col)
         
-#        M = dRm_duhat_petsc.copy()
-#        print(convertToDense(M))
-#        print(dRm_duhat_petsc.getSize())
-        ###### very slow
-        from timeit import default_timer
-        start = default_timer()
-        for i in range(row):
-            for j in range(col):
-                val = dRm_duhat_petsc.getValue(i,self.edge_indices[j])
-                dRm_dedge.setValue(i, j, val)
-        stop = default_timer()
-        print('time for setting up the PETSc matrix: ', stop-start)
-        # slow
-#        for j in range(col):
-#            val = dRm_duhat_petsc.getValues(np.arange(row).astype(PETSc.IntType),
-#                                            self.edge_indices[j])
-#            dRm_dedge.setValues(np.arange(row).astype(PETSc.IntType), j, val)
-        dRm_dedge.assemble()
-#        T = dRm_dedge.copy()
-#        print(convertToDense(T))
-#        print(dRm_dedge.getSize())
-        return dRm_dedge
+        M = zero_petsc_mat(row, col)
+        for j in range(col):
+            M.setValue(self.edge_indices[j], j, -1.0)
+        M.assemble()
+        return M
     
     def getFuncAverageSubdomain(self, func, subdomain):
         func_unit = interpolate(Constant(1.0), func.function_space())
@@ -423,7 +406,7 @@ class MagnetostaticProblem(object):
 
 if __name__ == "__main__":
     problem = MagnetostaticProblem()
-    problem.solveMeshMotion()
+#    problem.solveMeshMotion()
 #    problem.solveMagnetostatic(edge_deltas=np.zeros(len(problem.edge_indices)))
     problem.solveMagnetostatic()
     plt.figure(1)
@@ -433,9 +416,9 @@ if __name__ == "__main__":
     plot(problem.mesh)
     plt.show()
 
-###### Test the partial derivatives of the mesh motion subproblem
+##### Test the partial derivatives of the mesh motion subproblem
 #    dRm_dedge = problem.getBCDerivatives()
-#    print(convertToDense(dRm_dedge))
+#    print(np.linalg.norm(convertToDense(dRm_dedge)))
 
 ###### Test the average calculation for the flux linkage
 #    for i in range(4):

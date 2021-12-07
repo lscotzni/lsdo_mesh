@@ -100,7 +100,7 @@ def RelativePermeability(subdomain, u, uhat):
 
 # END NEW PERMEABILITY
 
-def JS(v,uhat,p,s,Hc,dx):
+def JS(v,uhat,p,s,Hc):
     Jm = 0.
     gradv = gradx(v,uhat)
     base_magnet_dir = 2 * np.pi / p / 2
@@ -121,7 +121,7 @@ def JS(v,uhat,p,s,Hc,dx):
     stator_winding_index_start  = 4 + 3 * p + 1
     stator_winding_index_end    = stator_winding_index_start + num_windings
     Jw = 0.
-    JA, JB, JC = 0., 0., 0.
+    JA, JB, JC = 1., 1., 1.
     for i in range(int((num_windings) / (num_phases * coil_per_phase))):
         coil_start_ind = i * num_phases * coil_per_phase
         for j in range(3):
@@ -143,17 +143,18 @@ def JS(v,uhat,p,s,Hc,dx):
             Jw += sum(J_list)
             # order: + - - + + - (signs switch with each instance of the phases)
     
-    return Jm + Jw
     
+    return Jm + Jw
+        
 def pdeRes(u,v,uhat,dx,p,s,Hc,vacuum_perm):
-    res = 0
+    res = 0.
     gradu = gradx(u,uhat)
     gradv = gradx(v,uhat)
     num_components = 4 * 3 * p + 2 * s
     for i in range(num_components):
         res += 1./vacuum_perm*(1/RelativePermeability(i + 1, u, uhat))\
                 *dot(gradu,gradv)*dx(i + 1)
-    res -= JS(v,uhat,p,s,Hc,dx)
+    res -= JS(v,uhat,p,s,Hc)
     return res
 
 
@@ -161,7 +162,6 @@ class OuterBoundary(SubDomain):
     def inside(self, x, on_boundary):
         return on_boundary
         
-
 class MagnetostaticProblem(object):
     """
     Preprocessor to set up the mesh and mesh functions
@@ -272,7 +272,6 @@ class MagnetostaticProblem(object):
         bc_m = self.setBCMeshMotion(self.uhat_old)
         res_m = self.resM()
         Dres_m = derivative(res_m, self.uhat)
-
         ####### Nonlinear solver setup #######
 
         # Nonlinear solver parameters
@@ -312,16 +311,25 @@ class MagnetostaticProblem(object):
         print(80*"=")
         bc_ms = self.setBCMagnetostatic()
         res_ms = self.resMS()
-        Dres_ms = derivative(res_ms, self.A_z)
-        # solve(self.resMS()==0, self.A_z, J=self.dR_du, bcs=bc_ms)
+        A_z_ = TrialFunction(self.V)
+        Dres_ms = derivative(res_ms, self.A_z, A_z_)
         
-        
-        problem_m = NonlinearVariationalProblem(res_ms, self.A_z, 
-                                                bc_ms, Dres_ms)
-        solver_m = NonlinearVariationalSolver(problem_m)
-        solver_m.parameters['nonlinear_solver']='snes' 
-        solver_m.parameters['snes_solver']['line_search'] = 'bt' 
+       
+        # Nonlinear solver parameters
+        REL_TOL_M = 1e-4
+        MAX_ITERS_M = 100
 
+#        update(self.A_z, 0.1*np.ones(self.total_dofs_A_z))
+        problem_ms = NonlinearVariationalProblem(res_ms, self.A_z, 
+                                                bc_ms, Dres_ms)
+        solver_ms = NonlinearVariationalSolver(problem_ms)
+        solver_ms.parameters['nonlinear_solver']='snes' 
+        solver_ms.parameters['snes_solver']['line_search'] = 'bt' 
+        solver_ms.parameters['snes_solver']['absolute_tolerance'] = REL_TOL_M
+        solver_ms.parameters['snes_solver']['maximum_iterations'] = MAX_ITERS_M
+        solver_ms.parameters['snes_solver']['linear_solver']='mumps' # "cg" "gmres"
+        solver_ms.parameters['snes_solver']['error_on_nonconvergence'] = False
+        solver_ms.solve()
         self.B = project(as_vector((self.A_z.dx(1),-self.A_z.dx(0))),
                         VectorFunctionSpace(self.mesh,'DG',0))
 
@@ -369,13 +377,12 @@ class MagnetostaticProblem(object):
 if __name__ == "__main__":
     problem = MagnetostaticProblem()
     # problem.solveMeshMotion()
-#    problem.solveMagnetostatic(edge_deltas=np.zeros(len(problem.edge_indices)))
     problem.solveMagnetostatic()
     plt.figure(1)
-    plot(problem.A_z, linewidth=40)
+    plot(problem.A_z)
     # plot(problem.B, linewidth=40)
-    ALE.move(problem.mesh, problem.uhat)
-    # plot(problem.mesh)
+#    ALE.move(problem.mesh, problem.uhat)
+#     plot(problem.mesh)
 #    print(problem.A_z.vector().get_local()[:10])
     plt.show()
 
