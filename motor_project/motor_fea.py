@@ -100,7 +100,7 @@ def RelativePermeability(subdomain, u, uhat):
 
 # END NEW PERMEABILITY
 
-def JS(v,uhat,p,s,Hc):
+def JS(v,uhat,p,s,Hc,dx):
     Jm = 0.
     gradv = gradx(v,uhat)
     base_magnet_dir = 2 * np.pi / p / 2
@@ -121,7 +121,7 @@ def JS(v,uhat,p,s,Hc):
     stator_winding_index_start  = 4 + 3 * p + 1
     stator_winding_index_end    = stator_winding_index_start + num_windings
     Jw = 0.
-    JA, JB, JC = -0.1, -0.1, -0.1
+    JA, JB, JC = 0., 0., 0.
     for i in range(int((num_windings) / (num_phases * coil_per_phase))):
         coil_start_ind = i * num_phases * coil_per_phase
         for j in range(3):
@@ -153,7 +153,7 @@ def pdeRes(u,v,uhat,dx,p,s,Hc,vacuum_perm):
     for i in range(num_components):
         res += 1./vacuum_perm*(1/RelativePermeability(i + 1, u, uhat))\
                 *dot(gradu,gradv)*dx(i + 1)
-    res -= JS(v,uhat,p,s,Hc)
+    res -= JS(v,uhat,p,s,Hc,dx)
     return res
 
 
@@ -287,8 +287,6 @@ class MagnetostaticProblem(object):
                            ['maximum_iterations'] = MAX_ITERS_M
         solver_m.parameters['newton_solver']\
                            ['relative_tolerance'] = REL_TOL_M
-        # solver.parameters['nonlinear_solver']='snes' 
-        # solver.parameters['snes_solver']['line_search'] = 'bt' 
         
         for i in range(STEPS):
             print(80*"=")
@@ -313,7 +311,17 @@ class MagnetostaticProblem(object):
         print(" FEA: Solving the magnetostatic problem on the deformed mesh")
         print(80*"=")
         bc_ms = self.setBCMagnetostatic()
-        solve(self.resMS()==0, self.A_z, J=self.dR_du, bcs=bc_ms)
+        res_ms = self.resMS()
+        Dres_ms = derivative(res_ms, self.A_z)
+        # solve(self.resMS()==0, self.A_z, J=self.dR_du, bcs=bc_ms)
+        
+        
+        problem_m = NonlinearVariationalProblem(res_ms, self.A_z, 
+                                                bc_ms, Dres_ms)
+        solver_m = NonlinearVariationalSolver(problem_m)
+        solver_m.parameters['nonlinear_solver']='snes' 
+        solver_m.parameters['snes_solver']['line_search'] = 'bt' 
+
         self.B = project(as_vector((self.A_z.dx(1),-self.A_z.dx(0))),
                         VectorFunctionSpace(self.mesh,'DG',0))
 
@@ -364,9 +372,10 @@ if __name__ == "__main__":
 #    problem.solveMagnetostatic(edge_deltas=np.zeros(len(problem.edge_indices)))
     problem.solveMagnetostatic()
     plt.figure(1)
-    #plot(problem.B, linewidth=40)
+    plot(problem.A_z, linewidth=40)
+    # plot(problem.B, linewidth=40)
     ALE.move(problem.mesh, problem.uhat)
-    plot(problem.mesh)
+    # plot(problem.mesh)
 #    print(problem.A_z.vector().get_local()[:10])
     plt.show()
 

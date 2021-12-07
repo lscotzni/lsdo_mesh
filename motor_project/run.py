@@ -26,38 +26,6 @@ print(sim['new_mesh_points_1'] - sim['new_mesh_points_2'])
 print(sim['new_edge_nodes_1'] - sim['new_edge_nodes_2'])
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# sim['shape_parameter_vec'] = np.zeros((3,))
-# sim.run()
-# # print(sim['output'])
-# result = sim['new_edge_nodes']
-# mesh1_length = int(len(result)/2)
-
-# asdf  = result[mesh1_length:] - result[:mesh1_length]
-# print(asdf)
-
-
-# print(list(vars(csdl_mesh_model)))
-# print(list(vars(csdl_mesh_model).keys()))
 exit()
 
 # TESTING MESH PARAMETRIZATION DIFFERENCES
