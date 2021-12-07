@@ -5,11 +5,11 @@ from csdl_om import Simulator
 from motor_mesh import MotorMeshGenerator
 
 rotor_rotations     = np.array([
-    i * 45 * np.pi / 180 for i in range(2)
+    i * 45 * np.pi / 180 for i in range(1)
 ])
 
 mesh_objects = []
-base_file_name = 'motor_mesh'
+base_file_name = 'motor_mesh_test'
 mesh_object = MotorMeshGenerator(rotor_rotations, base_file_name)
 
 csdl_mesh_model = vars(mesh_object)['mesh_model']
@@ -20,14 +20,40 @@ print(' ------------------------- CSDL MODEL VARIABLE CHECK --------------------
 #     print(vars(csdl_mesh_model)[key])
 
 sim = Simulator(csdl_mesh_model)
-sim['shape_parameter_vec'] = np.zeros((3,))
+# sim['shape_parameter_vec'] = np.ones((3,))
 sim.run()
-print(sim['output'])
-result = sim['output']
-mesh1_length = int(len(result)/2)
+print(sim['new_mesh_points_1'] - sim['new_mesh_points_2'])
+print(sim['new_edge_nodes_1'] - sim['new_edge_nodes_2'])
 
-asdf  = result[:mesh1_length]  - result[mesh1_length:]
-print(asdf)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# sim['shape_parameter_vec'] = np.zeros((3,))
+# sim.run()
+# # print(sim['output'])
+# result = sim['new_edge_nodes']
+# mesh1_length = int(len(result)/2)
+
+# asdf  = result[mesh1_length:] - result[:mesh1_length]
+# print(asdf)
 
 
 # print(list(vars(csdl_mesh_model)))

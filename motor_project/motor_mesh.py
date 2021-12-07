@@ -11,20 +11,21 @@ Mesh Generation of 2D Radial Flux PMSM
 # =========================================================
 
 ''' -------------------- Motor Attributes -------------------- '''
-# p       = 12 # poles per 360 degrees
+p       = 12 # poles per 360 degrees
 # s       = p * 3 # stator slots per 360 degrees
-p       = 2 # poles per 360 degrees
+# p       = 3 # poles per 360 degrees
 s       = 3 * p # stator slots per 360 degrees
 m       = 3 # number of phases for stator winding current
 
-ks      = 10 # target mesh size
+ks      = 1 # target mesh size
 
 ''' -------------------- Key Geometrical Parameters of Motor -------------------- '''
 # # Key Rotor Angles for Geometry
 theta_p     = 2*np.pi/p # Angular sweep of each Rotor Slice
-theta_m     = .78 * theta_p # Angular sweep of magnet
-theta_b     = .0595 * theta_p # Angular sweep of magnet side piece separation (gap between each slice)
-theta_g     = (theta_p - theta_m - theta_b)/2 # Angular sweep of each magnet side piece
+theta_m     = .5 * theta_p # Angular sweep of magnet
+# theta_b     = .0595 * theta_p # Angular sweep of magnet side piece separation (gap between each slice)
+# theta_g     = (theta_p - theta_m - theta_b)/2 # Angular sweep of each magnet air gap
+theta_g     = .1 * theta_m
 
 # # Key Stator Angles for Geometry
 theta_t     = 2*np.pi/s # Angular sweep of each Stator Tooth
@@ -72,35 +73,43 @@ def MotorMeshGenerator(rotation_angle, file_name):
 
     # -- Magnets and Air Slots
     magnet_air_slot_1_p     = [
-        lm.Point(Rbm, theta_b / 2 + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        # lm.Point(Rbm, theta_b / 2 + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rbm, 2*np.pi/p*i + np.pi/p - theta_m/2 - theta_g, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_2_p     = [
-        lm.Point(Rtm, theta_b / 2 + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        # lm.Point(Rtm, theta_b / 2 + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rtm, 2*np.pi/p*i + np.pi/p - theta_m/2 - theta_g, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_3_p     = [
-        lm.Point(Rbm, theta_b / 2 + theta_g + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        # lm.Point(Rbm, theta_b / 2 + theta_g + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rbm, 2*np.pi/p*i + np.pi/p - theta_m/2, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_4_p     = [
-        lm.Point(Rtm, theta_b / 2 + theta_g + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        # lm.Point(Rtm, theta_b / 2 + theta_g + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rtm, 2*np.pi/p*i + np.pi/p - theta_m/2, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_5_p     = [
-        lm.Point(Rbm, theta_b / 2 + theta_g + theta_m + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        # lm.Point(Rbm, theta_b / 2 + theta_g + theta_m + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rbm, 2*np.pi/p*i + np.pi/p + theta_m/2, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_6_p     = [
-        lm.Point(Rtm, theta_b / 2 + theta_g + theta_m + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        # lm.Point(Rtm, theta_b / 2 + theta_g + theta_m + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rtm, 2*np.pi/p*i + np.pi/p + theta_m/2, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_7_p     = [
-        lm.Point(Rbm, theta_p - theta_b / 2 + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        # lm.Point(Rbm, theta_p - theta_b / 2 + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rbm, 2*np.pi/p*i + np.pi/p + theta_m/2 + theta_g, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_8_p    = [
-        lm.Point(Rtm, theta_p - theta_b / 2 + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        # lm.Point(Rtm, theta_p - theta_b / 2 + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rtm, 2*np.pi/p*i + np.pi/p + theta_m/2 + theta_g, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     # -- Stator Outer Surface
@@ -514,7 +523,7 @@ def MotorMeshGenerator(rotation_angle, file_name):
         'r', 
         'constant'
     )
-    m.add_face(aaa)
+    # m.add_face(aaa)
 
     bbb = lm.Face([magnet_air_slot_1_p[1], magnet_air_slot_2_p[1]], input_type='polar')
     bbb.add_shape_parameter(
@@ -522,7 +531,15 @@ def MotorMeshGenerator(rotation_angle, file_name):
         'theta', 
         'linear'
     )
-    m.add_face(bbb)
+    # m.add_face(bbb)
+
+    pi_test = lm.Face([magnet_air_slot_3_p[1], magnet_air_slot_5_p[1]], input_type='polar')
+    pi_test.add_shape_parameter(
+        'inner_magnet_radius',
+        'r',
+        'constant'
+    )
+    m.add_face(pi_test)
 
     m.add_all_entities_to_physical_group('curves')
 
