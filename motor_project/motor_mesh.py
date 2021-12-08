@@ -22,7 +22,7 @@ ks      = 1 # target mesh size
 ''' -------------------- Key Geometrical Parameters of Motor -------------------- '''
 # # Key Rotor Angles for Geometry
 theta_p     = 2*np.pi/p # Angular sweep of each Rotor Slice
-theta_m     = .5 * theta_p # Angular sweep of magnet
+theta_m     = .6 * theta_p # Angular sweep of magnet
 # theta_b     = .0595 * theta_p # Angular sweep of magnet side piece separation (gap between each slice)
 # theta_g     = (theta_p - theta_m - theta_b)/2 # Angular sweep of each magnet air gap
 theta_g     = .1 * theta_m

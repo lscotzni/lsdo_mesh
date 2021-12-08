@@ -9,7 +9,7 @@ rotor_rotations     = np.array([
 ])
 
 mesh_objects = []
-base_file_name = 'motor_mesh_test'
+base_file_name = 'motor_mesh'
 mesh_object = MotorMeshGenerator(rotor_rotations, base_file_name)
 
 csdl_mesh_model = vars(mesh_object)['mesh_model']

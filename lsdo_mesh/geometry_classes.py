@@ -529,7 +529,7 @@ class Mesh(object):
                 gmsh.fltk.run()
             gmsh.finalize()
 
-            # os.system('python3 msh2xdmf.py -d 2 ' + self.name + '_{}.msh'.format(str(a+1)))
+            os.system('python3 msh2xdmf.py -d 2 ' + self.name + '_{}.msh'.format(str(a+1)))
         # print(aaa[1] - aaa[0])
         # coord_diff = bbb[1] - bbb[0]
         # asdf = np.where(coord_diff != 0.)

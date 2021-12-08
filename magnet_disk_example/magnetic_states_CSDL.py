@@ -143,10 +143,9 @@ if __name__ == "__main__":
     plt.figure(2)
     fea.moveMesh()
     # plot(fea.A_z)
-    plot(fea.mesh, linewidth=0.5)
+    plot(fea.mesh, linewidth=0.)
     plot(fea.subdomains_mf)
     plt.show()
-    exit()
     
     sim.check_partials()
     

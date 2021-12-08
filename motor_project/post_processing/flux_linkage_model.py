@@ -9,65 +9,82 @@ class FluxLinkageModel(Model):
         motor_length = self.create_input(name='motor_length')
         num_windings = self.create_input(name='num_windings')
 
-        mag_vec_pot_stator_teeth = self.create_input(
-            name='mag_vec_pot_stator_teeth',
-            shape=(2*s,)
+        winding_delta_A_z = self.declare_variable(
+            name='winding_delta_A_z',
+            val=np.arange(1,37),
+            shape=(s,)
         )
         # THIS HOLDS THE AVERAGE MAGNETIC VECTOR POTENTIAL VALUE IN A WINDING
         # WE NEED TO TAKE THE DELTA
 
-        mag_vec_pot_a_list =  self.create_input(
-            name='mag_vec_pot_a_list',
-            shape=(int(2*s/3),)
+        delta_A_z_a =  self.create_output(
+            name='delta_A_z_a',
+            shape=(int(s/3),)
         )
+        # delta_A_z_a[:] = winding_delta_A_z[:12]
 
-        mag_vec_pot_b_list =  self.create_input(
-            name='mag_vec_pot_b_list',
-            shape=(int(2*s/3),)
-        )
-
-        mag_vec_pot_c_list =  self.create_input(
-            name='mag_vec_pot_c_list',
-            shape=(int(2*s/3),)
-        )
-
-
-        flux_linkage_a_list =  self.create_output(
-            name='flux_linkage_a_list',
+        delta_A_z_b =  self.create_output(
+            name='delta_A_z_b',
             shape=(int(s/3),)
         )
 
-        flux_linkage_b_list =  self.create_output(
-            name='flux_linkage_b_list',
+        delta_A_z_c =  self.create_output(
+            name='delta_A_z_c',
             shape=(int(s/3),)
         )
 
-        flux_linkage_c_list =  self.create_output(
-            name='flux_linkage_c_list',
-            shape=(int(s/3),)
+        for i in range(int(s/9)):
+            delta_A_z_a[3*i:3*i+3] = winding_delta_A_z[9*i:9*i + 3]
+            delta_A_z_b[3*i:3*i+3] = winding_delta_A_z[9*i + 3:9*i + 6]
+            delta_A_z_c[3*i:3*i+3] = winding_delta_A_z[9*i + 6:9*i + 9]
+
+        # flux_linkage_a_list =  self.create_output(
+        #     name='flux_linkage_a_list',
+        #     shape=(int(s/3),)
+        # )
+
+        # flux_linkage_b_list =  self.create_output(
+        #     name='flux_linkage_b_list',
+        #     shape=(int(s/3),)
+        # )
+
+        # flux_linkage_c_list =  self.create_output(
+        #     name='flux_linkage_c_list',
+        #     shape=(int(s/3),)
+        # )
+        flux_linkage_a =  self.register_output(
+            name='flux_linkage_a',
+            var=csdl.sum(delta_A_z_a)
+        )
+        flux_linkage_b =  self.register_output(
+            name='flux_linkage_b',
+            var=csdl.sum(delta_A_z_b)
+        )
+        flux_linkage_c =  self.register_output(
+            name='flux_linkage_c',
+            var=csdl.sum(delta_A_z_c)
         )
 
-        for i in range(int(s/3)): # need absolute values around these; might be better to find absolute deltas outside
-            flux_linkage_a_list[i] = mag_vec_pot_a_list[2*i + 1] - mag_vec_pot_a_list[2*i]
-            flux_linkage_b_list[i] = mag_vec_pot_b_list[2*i + 1] - mag_vec_pot_b_list[2*i]
-            flux_linkage_c_list[i] = mag_vec_pot_c_list[2*i + 1] - mag_vec_pot_c_list[2*i]
-
-        if False:
-            for i in range(int(s/3)):
-                if (i+1)%3 == 1: # PHASE A
-                    for j in range(3):
-                        flux_linkage_a_list[i] = 1
-                    # 6*i to 6*i + 6
-                    
-                elif (i+1)%3 == 2: # PHASE B
-                    for j in range(3):
-                        flux_linkage_a_list[i] = 1
-                    # 6*i to 6*i + 6
-                    
-                elif (i+1)%3 == 0: # PHASE C
-                    for j in range(3):
-                        flux_linkage_a_list[i] = 1
-                    # 6*i to 6*i + 6
+        # flux_linkage_abc =  self.create_output(
+        #     name='flux_linkage_abc',
+        #     shape=(3,)
+        # )
+        # flux_linkage_abc[0] = flux_linkage_a
+        # flux_linkage_abc[1] = flux_linkage_b[0]
+        # flux_linkage_abc[2] = flux_linkage_c[0]
+            
+        
                 
+if __name__ == '__main__':
+    aaa = FluxLinkageModel()
+    sim = Simulator(aaa)
 
+    sim.run()
 
+    print(sim['winding_delta_A_z'])
+    print(sim['delta_A_z_a'], sim['delta_A_z_a'].shape)
+    print(sim['delta_A_z_b'])
+    print(sim['delta_A_z_c'])
+    print(sim['flux_linkage_a'].shape)
+
+    

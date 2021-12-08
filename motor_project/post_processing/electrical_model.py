@@ -17,7 +17,7 @@ class ElectricalModel(Model): # could also call Battery Model?
         p = 12
         torque_scale = self.create_input(name='torque_scale', val=3/2*p/2)
         theta  = self.create_input(name='theta', val=0.)
-        omega = self.declare_variable(name='omega', val = 1)
+        omega   = self.declare_variable(name='omega', val = 1)
         flux_linkage_abc  = self.create_input(name='flux_linkage_abc', shape=(3,))
         phase_current_abc  = self.create_input(name='phase_current_abc', shape=(3,))
 
@@ -33,7 +33,7 @@ class ElectricalModel(Model): # could also call Battery Model?
         )
 
         transform_matrix_forward[0] = csdl.cos(theta)
-        transform_matrix_forward[1] = csdl.cos(theta - sixty_deg_offset)
+        transform_matrix_forward[1] = csdl.cos(theta - 2*np.pi/3)
         transform_matrix_forward[2] = csdl.cos(theta + sixty_deg_offset)
         transform_matrix_forward[3] = -csdl.sin(theta)
         transform_matrix_forward[4] = -csdl.sin(theta - sixty_deg_offset)

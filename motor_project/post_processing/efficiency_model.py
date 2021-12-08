@@ -22,11 +22,12 @@ class EfficiencyModel(Model):
             var=copper_loss
         )
 
-        efficiency = input_power / (input_power + copper_loss)
-        efficiency = self.register_output(
-            name='efficiency',
-            var=efficiency
-        )
+        # efficiency = input_power / (input_power + copper_loss) # input power doesn't take into account copper loss
+        # efficiency = output_power / (input_power + copper_loss)
+        # efficiency = self.register_output(
+        #     name='efficiency',
+        #     var=efficiency
+        # )
 
 
 if __name__ == '__main__':
@@ -34,5 +35,5 @@ if __name__ == '__main__':
     sim = Simulator(aaa)
     sim.run()
     print(sim['copper_loss'])
-    print(sim['efficiency'])
+    # print(sim['efficiency'])
 

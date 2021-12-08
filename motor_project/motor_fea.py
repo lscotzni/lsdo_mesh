@@ -239,6 +239,36 @@ class MagnetostaticProblem(object):
                 self.A_z,self.v,self.uhat,self.dx,
                 self.p,self.s,self.Hc,self.vacuum_perm)
         return res_ms
+
+    def getSubdomainArea(self, func_unit, subdomain):
+        area = assemble(inner(func_unit, func_unit)*self.dx((subdomain)))
+        return area
+
+    def getFuncAverageSubdomain(self, func, subdomain):
+        func_unit = interpolate(Constant(1.0), func.function_space())
+        integral = assemble(inner(func, func_unit)*self.dx((subdomain)))
+        area = self.getSubdomainArea(func_unit, subdomain)
+        # area = assemble(inner(func_unit, func_unit)*self.dx(subdomain))
+        avg_func = integral/area
+        return avg_func
+     
+     # TODO: add the formula of flux linkage using 'getFuncAverageSubdomain' for each winding
+    def extractSubdomainAverageA_z(self, func, subdomain_range):
+        subdomain_avg_A_z = []
+        subdomain_avg_A_z_deltas = []
+        # winding_start, winding_end = 41, 112
+        for subdomain in subdomain_range:
+            subdomain_avg_A_z.append(
+                abs(self.getFuncAverageSubdomain(func, subdomain))
+            )
+        for i in range(int(len(subdomain_range)/2)):
+            subdomain_avg_A_z_deltas.append(
+                abs(subdomain_avg_A_z[2*i] - subdomain_avg_A_z[2*i+1])
+            )
+        
+        return subdomain_avg_A_z, subdomain_avg_A_z_deltas
+    def fluxLinkage(self):
+        pass
         
     def setBCMagnetostatic(self):
         A_outer = Constant(0.0)
@@ -332,6 +362,14 @@ class MagnetostaticProblem(object):
         solver_ms.solve()
         self.B = project(as_vector((self.A_z.dx(1),-self.A_z.dx(0))),
                         VectorFunctionSpace(self.mesh,'DG',0))
+
+        subdomain_range = np.arange(41,112)
+        self.winding_delta_A_z = self.extractSubdomainAverageA_z(
+            func=self.A_z,
+            subdomain_range=subdomain_range
+        )[1]
+
+        # print(self.winding_delta_A_z)
         
 
     def solveLinearFwd(self, A, dR):
@@ -379,6 +417,23 @@ if __name__ == "__main__":
     problem = MagnetostaticProblem()
     # problem.solveMeshMotion()
     problem.solveMagnetostatic()
+
+    ###### Test the average calculation for the flux linkage
+    subdomain_range = np.arange(41,112)
+    asdf, deltas  = problem.extractSubdomainAverageA_z(
+        func=problem.A_z,
+        subdomain_range=subdomain_range
+    )
+    for i in range(len(subdomain_range)):
+        print("Average A_z for subdomain "+str(i+41))
+        # print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+1))
+        print(asdf[i])
+
+    for i in range(len(deltas)):
+        print("Delta A_z for Stator Tooth "+str(i+1))
+        # print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+1))
+        print(deltas[i])
+    
     plt.figure(1)
     # plot(problem.A_z)
     plot(problem.B, linewidth=40)
