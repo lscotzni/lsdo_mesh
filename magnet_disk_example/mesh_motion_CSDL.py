@@ -19,7 +19,7 @@ class M(Model):
         self.output_size = self.fea.total_dofs_uhat
         edge_deltas = self.declare_variable('edge_deltas', 
                         shape=(self.input_size,), 
-                        val=np.zeros(self.input_size).reshape(self.input_size,))
+                        val=0.1*np.ones(self.input_size).reshape(self.input_size,))
 
         e = MeshMotion(fea=self.fea)
         uhat = csdl.custom(edge_deltas, op=e)
@@ -46,10 +46,10 @@ class MeshMotion(CustomImplicitOperation):
         self.output_size = self.fea.total_dofs_uhat
         self.add_input('edge_deltas', 
                         shape=(self.input_size,), 
-                        val=np.zeros(self.input_size).reshape(self.input_size,))
+                        val=0.1*np.ones(self.input_size).reshape(self.input_size,))
         self.add_output('uhat',
                         shape=(self.output_size,),
-                        val=np.zeros(self.output_size).reshape(self.output_size,))
+                        val=0.1*np.ones(self.output_size).reshape(self.output_size,))
         self.declare_derivatives('uhat', 'uhat')       
         self.declare_derivatives('uhat', 'edge_deltas')
      
@@ -66,7 +66,11 @@ class MeshMotion(CustomImplicitOperation):
         update(self.fea.uhat, outputs['uhat'])
         resM = assemble(self.fea.resM())
         uhat_0 = Function(self.fea.VHAT)
-        uhat_0.assign(self.fea.uhat)
+        uhat_1 = Function(self.fea.VHAT)
+        uhat_1.assign(self.fea.uhat)
+        uhat_1.vector()[self.fea.edge_indices] = inputs['edge_deltas']
+        uhat_0.assign(self.fea.uhat-uhat_1)
+        
         self.bcs.apply(resM, uhat_0.vector())
         
         residuals['uhat'] = resM.get_local()
@@ -91,24 +95,25 @@ class MeshMotion(CustomImplicitOperation):
         self.updateMeshMotionBC(inputs)
         update(self.fea.uhat, outputs['uhat'])
         
-#        self.dRdu,_ = assemble_system(self.fea.dRm_duhat, 
-#                                        self.fea.resM(), 
-#                                        bcs=self.bcs)
         self.dRdu = assemble(self.fea.dRm_duhat)
         self.bcs.apply(self.dRdu)
         self.dRdf = convertToDense(self.fea.getBCDerivatives())
-#        for i in range(len(self.fea.edge_indices)):
-#            row = self.fea.edge_indices[i].astype('int')
-#            col = i
-#            print(row, col)
-#            print(self.dRdf[row][col])
+        self.A = self.dRdu
+        for i in range(len(self.fea.edge_indices)):
+            row = self.fea.edge_indices[i].astype('int')
+            col = i
+            print(row, col)
+            print(self.dRdf[row][col])
+        self.niter = 0
         
     def compute_jacvec_product(self, inputs, outputs, 
                                 d_inputs, d_outputs, d_residuals, mode):
         print("="*40)
         print("CSDL: Running compute_jacvec_product()...")
         print("="*40)
-#        exit()
+#        self.niter += 1
+#        if self.niter >= 4:
+#            exit()
         if mode == 'fwd':
             if 'uhat' in d_residuals:
                 if 'uhat' in d_outputs:
@@ -138,11 +143,11 @@ class MeshMotion(CustomImplicitOperation):
         
         if mode == 'fwd':
             d_outputs['uhat'] = self.fea.solveLinearFwd(
-                                                self.dRdu, 
+                                                self.A, 
                                                 d_residuals['uhat'])
         else:
             d_residuals['uhat'] = self.fea.solveLinearBwd(
-                                                self.dRdu, 
+                                                self.A, 
                                                 d_outputs['uhat'])
             
             
@@ -158,7 +163,7 @@ if __name__ == "__main__":
 #    fea.moveMesh()
 #    plot(fea.mesh)
 #    plt.show()
-    
+    print(sim['uhat'].shape, sim['edge_deltas'].shape)
     
     # TODO: the partial derivative of residual wrt edge_deltas is not correct
     sim.check_partials()

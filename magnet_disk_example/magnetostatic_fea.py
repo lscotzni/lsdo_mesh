@@ -106,6 +106,7 @@ def update(f, f_values):
 def findNodeIndices(node_coordinates, coordinates):
     tree = KDTree(coordinates)
     dist, node_indices = tree.query(node_coordinates)
+#    print(dist)
     return node_indices
     
 I = Identity(2)
@@ -226,7 +227,6 @@ class MagnetostaticProblem(object):
         coordinates = V0.tabulate_dof_coordinates()
         
         old_edge_coords = getInitialEdgeCoords()
-        
         node_indices = findNodeIndices(np.reshape(old_edge_coords, (-1,2)), 
                                         coordinates)
         edge_indices = np.empty(2*len(node_indices))
@@ -260,13 +260,6 @@ class MagnetostaticProblem(object):
         print(" FEA: Assembling the derivatives dRm_dedge...")
         print("="*40)
         
-
-#        self.setUpMeshMotionSolver()
-#        bc_m = self.setBCMeshMotion()
-#        dRm_duhat = assemble(self.dRm_duhat)
-#        bc_m.apply(dRm_duhat)
-#        dRm_duhat_petsc = m2p(dRm_duhat)
-#        row, _ = dRm_duhat_petsc.getSize()
         row = self.total_dofs_uhat
         col = len(self.edge_indices)
         
@@ -298,7 +291,8 @@ class MagnetostaticProblem(object):
     def getDisplacementSteps(self, edge_deltas):
         STEPS = 2
         max_disp = np.max(np.abs(edge_deltas))
-        min_cell_size = self.mesh.hmin()
+#        min_cell_size = self.mesh.hmin()
+        min_cell_size = self.mesh.rmin()
         min_STEPS = round(max_disp/min_cell_size)
         if min_STEPS >= STEPS:
             STEPS = min_STEPS
@@ -406,16 +400,14 @@ class MagnetostaticProblem(object):
 
 if __name__ == "__main__":
     problem = MagnetostaticProblem()
-#    problem.solveMeshMotion()
+    problem.solveMeshMotion()
 #    problem.solveMagnetostatic(edge_deltas=np.zeros(len(problem.edge_indices)))
     problem.solveMagnetostatic()
     plt.figure(1)
-#    #plot(problem.B, linewidth=40)
     problem.moveMesh()
-#    plot(problem.A_z)
-    plot(problem.mesh)
+    plot(problem.mesh,linewidth=0.4)
+    plot(problem.subdomains_mf)
     plt.show()
-
 ##### Test the partial derivatives of the mesh motion subproblem
 #    dRm_dedge = problem.getBCDerivatives()
 #    print(np.linalg.norm(convertToDense(dRm_dedge)))

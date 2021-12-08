@@ -131,7 +131,8 @@ m.assemble(coordinate_system='polar')
 # or `edge_deltas`, given that we already have `old_edge_coords`.
 def getInitialEdgeCoords():
     old_edge_coords = m.get_ffd_edge_old_coords(output_type='cartesian')
-    return old_edge_coords
+    # Ru: trim out the origin (x=0,y=0) where there's no nearby (dist<1e-10) nodes in the mesh
+    return old_edge_coords[:-2]
 def generateMeshMovement(angle):
     delta = np.zeros((4 * vars(m)['num_ffd_faces'], 2)) # array of deltas applied to FFD FACES
     delta[:8, 1] = 0.25
@@ -144,7 +145,7 @@ def generateMeshMovement(angle):
     delta[8:, 0] = 0
     edge_deltas= m.test_ffd_edge_parametrization_polar(delta,   
                                                 output_type='cartesian')
-    return edge_deltas
+    return edge_deltas[:-2]
 # outputs of line 132 are the new edge coordinates, old edge coordinates, the delta array and edge indices
 
 #print(old_edge_coords)
