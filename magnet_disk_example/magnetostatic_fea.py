@@ -234,7 +234,7 @@ class MagnetostaticProblem(object):
             edge_indices[2*i] = 2*node_indices[i]
             edge_indices[2*i+1] = 2*node_indices[i]+1
             
-        return edge_indices
+        return edge_indices.astype('int')
     
     def resM(self):
         # Residual for mesh, which satisfies a fictitious elastic problem:
@@ -262,13 +262,12 @@ class MagnetostaticProblem(object):
         
         row = self.total_dofs_uhat
         col = len(self.edge_indices)
-        
-        M = zero_petsc_mat(row, col)
+        M = np.zeros((row, col))
         for j in range(col):
-            M.setValue(self.edge_indices[j], j, -1.0)
-        M.assemble()
+            M[self.edge_indices[j].astype('int')][j] = -1.0
+        
         return M
-    
+        
     def getFuncAverageSubdomain(self, func, subdomain):
         func_unit = interpolate(Constant(1.0), func.function_space())
         integral = assemble(inner(func, func_unit)*self.dx(subdomain))
@@ -408,9 +407,8 @@ if __name__ == "__main__":
     plot(problem.mesh,linewidth=0.4)
     plot(problem.subdomains_mf)
     plt.show()
-##### Test the partial derivatives of the mesh motion subproblem
-#    dRm_dedge = problem.getBCDerivatives()
-#    print(np.linalg.norm(convertToDense(dRm_dedge)))
+#### Test the partial derivatives of the mesh motion subproblem
+    dRm_dedge = problem.getBCDerivatives()
 
 ###### Test the average calculation for the flux linkage
 #    for i in range(4):
