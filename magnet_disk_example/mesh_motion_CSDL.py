@@ -19,7 +19,6 @@ class M(Model):
         self.output_size = self.fea.total_dofs_uhat
         edge_deltas = self.declare_variable('edge_deltas', 
                         shape=(self.input_size,), 
-#                        val=np.zeros(self.input_size).reshape(self.input_size,)
                         val=0.1*np.ones(self.input_size).reshape(self.input_size,)
                         )
 
@@ -48,12 +47,10 @@ class MeshMotion(CustomImplicitOperation):
         self.output_size = self.fea.total_dofs_uhat
         self.add_input('edge_deltas', 
                         shape=(self.input_size,), 
-#                        val=np.zeros(self.input_size).reshape(self.input_size,)
                         val=0.1*np.ones(self.input_size).reshape(self.input_size,)
                         )
         self.add_output('uhat',
                         shape=(self.output_size,),
-#                        val=np.zeros(self.output_size).reshape(self.output_size,)
                         val=0.1*np.ones(self.output_size).reshape(self.output_size,)
                         )
         self.declare_derivatives('uhat', 'uhat')       
@@ -152,11 +149,11 @@ if __name__ == "__main__":
     sim = Simulator(M(fea=fea))
     
 #    sim['edge_deltas'] = generateMeshMovement(-pi/36)
-    sim.run()
-    fea.uhat.vector().set_local(sim['uhat'])
+#    sim.run()
     plt.figure(1)
-    fea.moveMesh()
+    fea.moveMesh(fea.uhat)
     plot(fea.mesh)
 #    plt.show()
 
-    sim.check_partials(step=0.001)
+    sim.check_partials()
+    

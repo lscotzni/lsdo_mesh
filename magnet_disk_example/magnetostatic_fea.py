@@ -206,6 +206,7 @@ class MagnetostaticProblem(object):
         
         self.dRm_duhat = derivative(self.resM(), self.uhat)
         
+        self.total_dofs_bc = len(self.edge_indices)
         self.total_dofs_A_z = len(self.A_z.vector().get_local())
         self.total_dofs_uhat = len(self.uhat.vector().get_local())
         
@@ -261,7 +262,7 @@ class MagnetostaticProblem(object):
         print("="*40)
         
         row = self.total_dofs_uhat
-        col = len(self.edge_indices)
+        col = self.total_dofs_bc
         M = np.zeros((row, col))
         for j in range(col):
             M[self.edge_indices[j].astype('int')][j] = -1.0
@@ -290,24 +291,27 @@ class MagnetostaticProblem(object):
     def getDisplacementSteps(self, edge_deltas):
         STEPS = 2
         max_disp = np.max(np.abs(edge_deltas))
-#        min_cell_size = self.mesh.hmin()
+        self.moveMesh(self.uhat)
         min_cell_size = self.mesh.rmin()
+        uhat_back = Function(self.VHAT)
+        uhat_back.assign(-self.uhat)
+        self.moveMesh(uhat_back)
         min_STEPS = round(max_disp/min_cell_size)
         if min_STEPS >= STEPS:
             STEPS = min_STEPS
         increment_deltas = edge_deltas/STEPS
         return STEPS, increment_deltas
-
-        
+    
     def setUpMeshMotionSolver(self):
         if self.edge_deltas is None:
             self.edge_deltas = generateMeshMovement(pi/36)
-        self.STEPS, self.increment_deltas = self.getDisplacementSteps(self.edge_deltas)
+        
+        # Get the relative movements from the previous step
+        relative_edge_deltas = self.edge_deltas - self.uhat.vector().get_local()[self.edge_indices]
+        self.STEPS, self.increment_deltas = self.getDisplacementSteps(relative_edge_deltas)
         
         ####### Formulation of mesh motion as a hyperelastic problem #######
-        
-        # Initialize the boundary condition for the first displacement step
-        self.uhat_old.vector()[self.edge_indices] = self.increment_deltas
+
         bc_m = self.setBCMeshMotion()
         res_m = self.resM()
         Dres_m = derivative(res_m, self.uhat)
@@ -329,15 +333,17 @@ class MagnetostaticProblem(object):
                            
     def solveMeshMotion(self):
         self.setUpMeshMotionSolver()
+        
         for i in range(self.STEPS):
             print(80*"=")
             print("  FEA: Step "+str(i+1)+" of mesh movement")
             print(80*"=")
-            self.solver_m.solve()
+#            print(self.uhat.vector().get_local()[problem.edge_indices[:5]])
             self.uhat_old.assign(self.uhat)
-            self.uhat_old.vector()[self.edge_indices] += self.increment_deltas
-            
-            
+            for i in range(self.total_dofs_bc):
+                self.uhat_old.vector()[self.edge_indices[i]] += self.increment_deltas[i]
+            self.solver_m.solve()
+
         print(80*"=")
         print(' FEA: L2 error of the mesh motion on the edges:', 
                     np.linalg.norm(self.uhat.vector()[self.edge_indices]
@@ -394,16 +400,23 @@ class MagnetostaticProblem(object):
         v2p(self.dR.vector()).ghostUpdate()
         return self.dR.vector().get_local()
 
-    def moveMesh(self):
-        ALE.move(self.mesh, self.uhat)
+    def moveMesh(self, disp):
+        ALE.move(self.mesh, disp)
 
 if __name__ == "__main__":
     problem = MagnetostaticProblem()
+    problem.edge_deltas = generateMeshMovement(-pi/48)
     problem.solveMeshMotion()
+#    print(problem.uhat.vector().get_local()[problem.edge_indices[:5]])
+#    print(problem.edge_deltas[:5])
+    problem.edge_deltas = generateMeshMovement(-pi/36)
+    problem.solveMeshMotion()
+    print(problem.uhat.vector().get_local()[problem.edge_indices[:5]])
+    print(problem.edge_deltas[:5])
 #    problem.solveMagnetostatic(edge_deltas=np.zeros(len(problem.edge_indices)))
-    problem.solveMagnetostatic()
+#    problem.solveMagnetostatic()
     plt.figure(1)
-    problem.moveMesh()
+    problem.moveMesh(problem.uhat)
     plot(problem.mesh,linewidth=0.4)
     plot(problem.subdomains_mf)
     plt.show()

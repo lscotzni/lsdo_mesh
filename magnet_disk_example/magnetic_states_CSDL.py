@@ -130,23 +130,17 @@ if __name__ == "__main__":
     fea.solveMeshMotion()
     sim = Simulator(M(fea=fea))
     from matplotlib import pyplot as plt
-#    plt.figure(1)
-#    fea.moveMesh()
-#    plot(fea.mesh)
-#    plt.show()
 
 
-    sim.run()
+#    sim.run()
 #    sim.visualize_implementation()
     fea.A_z.vector().set_local(sim['A_z'])
-    plt.figure(2)
-    fea.moveMesh()
+    plt.figure(1)
+    fea.moveMesh(fea.uhat)
     # plot(fea.A_z)
-    plot(fea.mesh, linewidth=0.)
+    plot(fea.mesh, linewidth=0.1)
     plot(fea.subdomains_mf)
     plt.show()
-    exit()
-
     
     sim.check_partials()
     
