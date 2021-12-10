@@ -1,3 +1,9 @@
+"""
+The FEniCS wrapper for the variational forms and the partial derivatives computation
+in the magnetostatic/motor problem on a deformable mesh.
+"""
+
+
 from dolfin import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,13 +12,20 @@ from msh2xdmf import import_mesh
 from magnet_disk_mesh import generateMeshMovement, getInitialEdgeCoords
 from piecewise_permeability import *
 from scipy.spatial import KDTree
+from scipy.sparse import csr_matrix
 
 
 #set_log_level(1)
 def m2p(A):
+    """
+    Convert the matrix of DOLFIN type to a PETSc.Mat object
+    """
     return as_backend_type(A).mat()
 
 def v2p(v):
+    """
+    Convert the vector of DOLFIN type to a PETSc.Vec object
+    """
     return as_backend_type(v).vec()
 
     
@@ -90,12 +103,19 @@ def zero_petsc_mat(row, col, comm=MPI.comm_world):
     return A
     
 def convertToDense(A_petsc):
+    """
+    Convert the PETSc matrix to a dense numpy array
+    (super unefficient, only used for debugging purposes)
+    """
     A_petsc.assemble()
     A_dense = A_petsc.convert("dense")
     return A_dense.getDenseArray()
     
 def update(f, f_values):
     """
+    Update the nodal values in every dof of the DOLFIN function `f`
+    according to `f_values`.
+    -------------------------
     f: dolfin function
     f_values: numpy array
     """
@@ -104,16 +124,35 @@ def update(f, f_values):
     v2p(f.vector()).ghostUpdate()
     
 def findNodeIndices(node_coordinates, coordinates):
+    """
+    Find the indices of the closest nodes, given the `node_coordinates`
+    for a set of nodes and the `coordinates` for all of the vertices
+    in the mesh, by using scipy.spatial.KDTree
+    """
     tree = KDTree(coordinates)
     dist, node_indices = tree.query(node_coordinates)
-#    print(dist)
     return node_indices
     
 I = Identity(2)
-def gradx(f,u):
-    return dot(grad(f), inv(I + grad(u)))
+def gradx(f,uhat):
+    """
+    Convert the differential operation from the reference domain
+    to the measure in the deformed configuration based on the mesh
+    movement of `uhat`
+    --------------------------
+    f: DOLFIN function for the solution of the physical problem
+    uhat: DOLFIN function for mesh movements
+    """
+    return dot(grad(f), inv(I + grad(uhat)))
 
 def J(uhat):
+    """
+    Compute the determinant of the deformation gradient used in the 
+    integration measure of the deformed configuration wrt the the 
+    reference configuration.
+    ---------------------------
+    uhat: DOLFIN function for mesh movements
+    """
     return det(I + grad(uhat))
     
 # START NEW PERMEABILITY
@@ -142,6 +181,10 @@ def RelativePermeability(subdomain, u, uhat):
 # END NEW PERMEABILITY
 
 def Jm(v,uhat,num_magnets,Hc):
+    """
+    The variational form for the source term (current) of the 
+    Maxwell equation
+    """
     Jm = 0.
     gradv = gradx(v,uhat)
     for i in range(num_magnets):
@@ -152,35 +195,49 @@ def Jm(v,uhat,num_magnets,Hc):
         H = as_vector([Hx, Hy])
         
         curl_v = as_vector([gradv[1],-gradv[0]])
-        Jm += inner(H,curl_v)*dx(i+2)
+        # note that the integration measure has been changed
+        # to be J(uhat)*dx
+        Jm += inner(H,curl_v)*J(uhat)*dx(i+2)
     return Jm
     
 def pdeRes(u,v,uhat,dx,num_magnets,Hc,vacuum_perm):
+    """
+    The variational form of the PDE residual for the magnetostatic problem
+    """
     res = 0
     gradu = gradx(u,uhat)
     gradv = gradx(v,uhat)
     for i in range(5):
+        # note that the integration measure has been changed to be J(uhat)*dx
         res += 1./vacuum_perm*(1/RelativePermeability(i + 1, u, uhat))\
-                *dot(gradu,gradv)*dx(i + 1)
+                *dot(gradu,gradv)*J(uhat)*dx(i + 1)
     res -= Jm(v,uhat,num_magnets,Hc)
     return res
 
 
 
 class OuterBoundary(SubDomain):
+    """
+    Define the outer boundary of the domain
+    """
     def inside(self, x, on_boundary):
         return on_boundary
         
 
 class MagnetostaticProblem(object):
     """
-    Preprocessor to set up the mesh and mesh functions
-    """  
+    The class of the FEniCS wrapper for the magnetostatic problem,
+    with methods to compute the variational forms, partial derivatives,
+    and solve the nonlinear/linear subproblems.
+    """
     def __init__(self, mesh_file="magnet_disk_mesh_1"):
 
         self.mesh_file = mesh_file
+        # Import the initial mesh from the mesh file to FEniCS
         self.initMesh()
+        # Define the function spaces based on the initial mesh
         self.initFunctionSpace()
+        # Get the indices of the vertices that would move during optimization
         self.edge_indices = self.locateMeshMotion()
         
         # PROBLEM SPECIFIC PARAMETERS
@@ -188,29 +245,38 @@ class MagnetostaticProblem(object):
         self.num_magnets = 4
         self.vacuum_perm = 4e-7 * np.pi
         
+        # Initialize the edge movements
         self.edge_deltas = None
 
         self.uhat = Function(self.VHAT) # Function for the solution of the mesh motion
         self.uhat_old = Function(self.VHAT) # Function to apply the BCs of the mesh motion
-        self.duhat = Function(self.VHAT)
-        self.dRhat = Function(self.VHAT)
+        self.duhat = Function(self.VHAT) # Function used in the CSDL model
+        self.dRhat = Function(self.VHAT) # Function used in the CSDL model
  
         self.A_z = Function(self.V) # Function for the solution of the magnetic vector potential
         self.v = TestFunction(self.V)
-        self.dR = Function(self.V)
-        self.du = Function(self.V)
-        
-        
-        self.dR_du = derivative(self.resMS(), self.A_z)
-        self.dR_duhat = derivative(self.resMS(), self.uhat)
-        
-        self.dRm_duhat = derivative(self.resM(), self.uhat)
-        
-        self.total_dofs_bc = len(self.edge_indices)
+        self.dR = Function(self.V) # Function used in the CSDL model
+        self.du = Function(self.V) # Function used in the CSDL model
+                
+        self.total_dofs_bc = len(self.edge_indices) 
         self.total_dofs_A_z = len(self.A_z.vector().get_local())
         self.total_dofs_uhat = len(self.uhat.vector().get_local())
         
+        # Partial derivatives in the magnetostatic problem
+        self.dR_du = derivative(self.resMS(), self.A_z)
+        self.dR_duhat = derivative(self.resMS(), self.uhat)
+        
+        # Partial derivatives in the mesh motion subproblem
+        self.dRm_duhat = derivative(self.resM(), self.uhat)
+        self.dRm_dedge = self.getBCDerivatives()
+        
+
+        
     def initMesh(self):
+        """
+        Preprocessor 1 to set up the mesh and define the integration measure with the 
+        imported mesh functions from GMSH.
+        """ 
         self.mesh, self.boundaries_mf, self.subdomains_mf, association_table = import_mesh(
             prefix=self.mesh_file,
             dim=2,
@@ -220,16 +286,31 @@ class MagnetostaticProblem(object):
         self.dS = Measure('dS', domain=self.mesh, subdomain_data=self.boundaries_mf)
         
     def initFunctionSpace(self):
+        """
+        Preprocessor 2 to define the function spaces for the mesh motion (VHAT)
+        and the problem solution (V)
+        """
         self.V = FunctionSpace(self.mesh, 'P', 1)
         self.VHAT = VectorFunctionSpace(self.mesh, 'P', 1)
     
     def locateMeshMotion(self):
+        """
+        Find the indices of the dofs for setting up the boundary condition 
+        in the mesh motion subproblem
+        """
         V0 = FunctionSpace(self.mesh, 'CG', 1)
         coordinates = V0.tabulate_dof_coordinates()
         
+        # One-time computation for the initial edge coordinates from
+        # the code that creates the mesh file
         old_edge_coords = getInitialEdgeCoords()
+        
+        # Use KDTree to find the node indices of the points on the edge
+        # in the mesh object in FEniCS
         node_indices = findNodeIndices(np.reshape(old_edge_coords, (-1,2)), 
                                         coordinates)
+        
+        # Convert the node indices to edge indices, where each node has 2 dofs
         edge_indices = np.empty(2*len(node_indices))
         for i in range(len(node_indices)):
             edge_indices[2*i] = 2*node_indices[i]
@@ -238,6 +319,9 @@ class MagnetostaticProblem(object):
         return edge_indices.astype('int')
     
     def resM(self):
+        """
+        Formulation of mesh motion as a hyperelastic problem
+        """
         # Residual for mesh, which satisfies a fictitious elastic problem:
         duhat = TestFunction(self.VHAT)
         F_m = grad(self.uhat) + I
@@ -251,28 +335,35 @@ class MagnetostaticProblem(object):
         return res_m
         
     def resMS(self):
+        """
+        Formulation of the magnetostatic problem
+        """
         res_ms = pdeRes(
                 self.A_z,self.v,self.uhat,self.dx,
                 self.num_magnets,self.Hc,self.vacuum_perm)
         return res_ms
     
     def getBCDerivatives(self):
-        print("="*40)
-        print(" FEA: Assembling the derivatives dRm_dedge...")
-        print("="*40)
+        """
+        Compute the derivatives of the PDE residual of the mesh motion
+        subproblem wrt the BCs, which is a fixed sparse matrix with "-1"s
+        on the entries corresponding to the edge indices.
+        """
         
-        row = self.total_dofs_uhat
-        col = self.total_dofs_bc
-        M = np.zeros((row, col))
-        for j in range(col):
-            M[self.edge_indices[j].astype('int')][j] = -1.0
-        
+        row_ind = self.edge_indices
+        col_ind = np.arange(self.total_dofs_bc)
+        data = -1.0*np.ones(self.total_dofs_bc)
+        M = csr_matrix((data, (row_ind, col_ind)), 
+                        shape=(self.total_dofs_uhat, self.total_dofs_bc))
         return M
         
-    def getFuncAverageSubdomain(self, func, subdomain):
+    def getFuncAverageSubdomain(self, func, subdomain_ID):
+        """
+        Compute the average function value on a certain subdomain
+        """
         func_unit = interpolate(Constant(1.0), func.function_space())
-        integral = assemble(inner(func, func_unit)*self.dx(subdomain))
-        area = assemble(inner(func_unit, func_unit)*self.dx(subdomain))
+        integral = assemble(inner(func, func_unit)*self.dx(subdomain_ID))
+        area = assemble(inner(func_unit, func_unit)*self.dx(subdomain_ID))
         avg_func = integral/area
         return avg_func
      
@@ -281,14 +372,25 @@ class MagnetostaticProblem(object):
         pass
     
     def setBCMagnetostatic(self):
+        """
+        Set zero BC on the outer boundary of the domain
+        """
         A_outer = Constant(0.0)
         outer_bound = OuterBoundary()
         return DirichletBC(self.V, self.A_z, outer_bound)
     
     def setBCMeshMotion(self):
+        """
+        Set BC for the mesh motion problem on the edges dynamically, 
+        based on 'self.uhat_old', which would be updated during the 
+        optimization and the displacement steps
+        """
         return DirichletBC(self.VHAT, self.uhat_old, self.boundaries_mf, 1000)
 
     def getDisplacementSteps(self, edge_deltas):
+        """
+        Divide the edge movements into steps based on the current mesh size
+        """
         STEPS = 2
         max_disp = np.max(np.abs(edge_deltas))
         self.moveMesh(self.uhat)
@@ -303,6 +405,10 @@ class MagnetostaticProblem(object):
         return STEPS, increment_deltas
     
     def setUpMeshMotionSolver(self):
+        """
+        Set up the Newton solver for the mesh motion subproblem, compute the step size
+        for the displacement increases based on the mesh size from the previous step.
+        """
         if self.edge_deltas is None:
             self.edge_deltas = generateMeshMovement(pi/36)
         
@@ -310,8 +416,6 @@ class MagnetostaticProblem(object):
         relative_edge_deltas = self.edge_deltas - self.uhat.vector().get_local()[self.edge_indices]
         self.STEPS, self.increment_deltas = self.getDisplacementSteps(relative_edge_deltas)
         
-        ####### Formulation of mesh motion as a hyperelastic problem #######
-
         bc_m = self.setBCMeshMotion()
         res_m = self.resM()
         Dres_m = derivative(res_m, self.uhat)
@@ -332,8 +436,14 @@ class MagnetostaticProblem(object):
                            ['relative_tolerance'] = REL_TOL_M
                            
     def solveMeshMotion(self):
+        
+        """
+        Solve for the mesh motion subproblem
+        """
+        # Set up the Newton solver based on the boundary conditions
         self.setUpMeshMotionSolver()
         
+        # Incrementally set the BCs to increase to `edge_deltas`
         for i in range(self.STEPS):
             print(80*"=")
             print("  FEA: Step "+str(i+1)+" of mesh movement")
@@ -352,7 +462,9 @@ class MagnetostaticProblem(object):
         
     def solveMagnetostatic(self):
         
-        ######### Formulation of the magnetostatic problem #################
+        """
+        Solve the magnetostatic problem with the mesh movements `uhat`
+        """
         
         print(80*"=")
         print(" FEA: Solving the magnetostatic problem on the deformed mesh")
@@ -364,7 +476,7 @@ class MagnetostaticProblem(object):
 
     def solveLinearFwd(self, A, dR):
         """
-        solve linear system dR = dR_du (A) * du
+        solve linear system dR = dR_du (A) * du in DOLFIN type
         """
         self.dR.vector().set_local(dR)
         v2p(self.dR.vector()).assemble()
@@ -382,7 +494,7 @@ class MagnetostaticProblem(object):
 
     def solveLinearBwd(self, A, du):
         """
-        solve linear system du = dR_du.T (A_T) * dR
+        solve linear system du = dR_du.T (A_T) * dR in DOLFIN type
         """
         self.du.vector().set_local(du)
         v2p(self.du.vector()).assemble()
@@ -401,28 +513,37 @@ class MagnetostaticProblem(object):
         return self.dR.vector().get_local()
 
     def moveMesh(self, disp):
+        """
+        Move the mesh object based on the `disp` function,
+        for post-processing purposes.
+        """
         ALE.move(self.mesh, disp)
 
 if __name__ == "__main__":
     problem = MagnetostaticProblem()
-    problem.edge_deltas = generateMeshMovement(-pi/48)
-    problem.solveMeshMotion()
+#    problem.edge_deltas = generateMeshMovement(-pi/48)
+#    problem.solveMeshMotion()
+#    problem.edge_deltas = generateMeshMovement(-pi/36)
+#    problem.solveMeshMotion()
 #    print(problem.uhat.vector().get_local()[problem.edge_indices[:5]])
 #    print(problem.edge_deltas[:5])
-    problem.edge_deltas = generateMeshMovement(-pi/36)
-    problem.solveMeshMotion()
-    print(problem.uhat.vector().get_local()[problem.edge_indices[:5]])
-    print(problem.edge_deltas[:5])
-#    problem.solveMagnetostatic(edge_deltas=np.zeros(len(problem.edge_indices)))
-#    problem.solveMagnetostatic()
+    problem.solveMagnetostatic()
     plt.figure(1)
     problem.moveMesh(problem.uhat)
     plot(problem.mesh,linewidth=0.4)
     plot(problem.subdomains_mf)
-    plt.show()
+    plt.figure(2)
+    plot(problem.mesh,linewidth=0.4)
+    plot(problem.A_z)
+#    plt.show()
+    
+    vtkfile_A_z = File('magnet_disk_solutions/Magnetic_Vector_Potential.pvd')
+    vtkfile_B = File('magnet_disk_solutions/Magnetic_Flux_Density.pvd')
+    vtkfile_A_z << problem.A_z
+    vtkfile_B << problem.B
 #### Test the partial derivatives of the mesh motion subproblem
     dRm_dedge = problem.getBCDerivatives()
-
+    print(dRm_dedge.dot(np.ones(problem.total_dofs_bc)))
 ###### Test the average calculation for the flux linkage
 #    for i in range(4):
 #        print("Average A_z for magnet "+str(i+1))

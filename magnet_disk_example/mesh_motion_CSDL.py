@@ -8,9 +8,9 @@ from magnetostatic_fea import *
 class M(Model):
 
     def initialize(self):
-        print("="*40)
-        print("CSDL: Running initialize()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running initialize()...")
+#        print("="*40)
         self.parameters.declare('fea')
         
     def define(self):
@@ -33,15 +33,15 @@ class MeshMotion(CustomImplicitOperation):
     output: uhat
     """
     def initialize(self):
-        print("="*40)
-        print("CSDL: Running initialize()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running initialize()...")
+#        print("="*40)
         self.parameters.declare('fea')
         
     def define(self):
-        print("="*40)
-        print("CSDL: Running define()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running define()...")
+#        print("="*40)
         self.fea = self.parameters['fea']
         self.input_size = len(self.fea.edge_indices)
         self.output_size = self.fea.total_dofs_uhat
@@ -55,7 +55,6 @@ class MeshMotion(CustomImplicitOperation):
                         )
         self.declare_derivatives('uhat', 'uhat')       
         self.declare_derivatives('uhat', 'edge_deltas')
-        self.niter = 0
         
     def updateMeshMotionBC(self, inputs):
         self.fea.edge_deltas = inputs['edge_deltas']
@@ -64,9 +63,9 @@ class MeshMotion(CustomImplicitOperation):
         self.bcs = self.fea.setBCMeshMotion()
         
     def evaluate_residuals(self, inputs, outputs, residuals):
-        print("="*40)
-        print("CSDL: Running evaluate_residuals()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running evaluate_residuals()...")
+#        print("="*40)
         self.updateMeshMotionBC(inputs)
         update(self.fea.uhat, outputs['uhat'])
         resM = assemble(self.fea.resM())
@@ -77,9 +76,9 @@ class MeshMotion(CustomImplicitOperation):
         residuals['uhat'] = resM.get_local()
     
     def solve_residual_equations(self, inputs, outputs):
-        print("="*40)
-        print("CSDL: Running solve_residual_equations()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running solve_residual_equations()...")
+#        print("="*40)
         self.updateMeshMotionBC(inputs)
         update(self.fea.uhat, outputs['uhat'])
         
@@ -87,13 +86,12 @@ class MeshMotion(CustomImplicitOperation):
                
         outputs['uhat'] = self.fea.uhat.vector().get_local()
         update(self.fea.uhat, outputs['uhat'])
-    
 
         
     def compute_derivatives(self, inputs, outputs, derivatives):
-        print("="*40)
-        print("CSDL: Running compute_derivatives()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running compute_derivatives()...")
+#        print("="*40)
         self.updateMeshMotionBC(inputs)
         update(self.fea.uhat, outputs['uhat'])
         
@@ -102,11 +100,12 @@ class MeshMotion(CustomImplicitOperation):
         self.dRdf = self.fea.getBCDerivatives()
         self.A = self.dRdu
         
+        
     def compute_jacvec_product(self, inputs, outputs, 
                                 d_inputs, d_outputs, d_residuals, mode):
-        print("="*40)
-        print("CSDL: Running compute_jacvec_product()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running compute_jacvec_product()...")
+#        print("="*40)
         if mode == 'fwd':
             if 'uhat' in d_residuals:
                 if 'uhat' in d_outputs:
@@ -114,9 +113,7 @@ class MeshMotion(CustomImplicitOperation):
                     d_residuals['uhat'] += computeMatVecProductFwd(
                                             self.dRdu, self.fea.duhat)
                 if 'edge_deltas' in d_inputs:
-                    d_residuals['uhat'] += np.dot(
-                                            self.dRdf, 
-                                            d_inputs['edge_deltas'])
+                    d_residuals['uhat'] += self.dRdf.dot(d_inputs['edge_deltas'])
                     
         if mode == 'rev':
             if 'uhat' in d_residuals:
@@ -125,14 +122,13 @@ class MeshMotion(CustomImplicitOperation):
                     d_outputs['uhat'] += computeMatVecProductBwd(
                                             self.dRdu, self.fea.dRhat)
                 if 'edge_deltas' in d_inputs:
-                    d_inputs['edge_deltas'] += np.dot(
-                                            np.transpose(self.dRdf), 
+                    d_inputs['edge_deltas'] += self.dRdf.transpose().dot(
                                             d_residuals['uhat'])
                     
     def apply_inverse_jacobian(self, d_outputs, d_residuals, mode):
-        print("="*40)
-        print("CSDL: Running apply_inverse_jacobian()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running apply_inverse_jacobian()...")
+#        print("="*40)
         
         if mode == 'fwd':
             d_outputs['uhat'] = self.fea.solveLinearFwd(
@@ -147,13 +143,13 @@ class MeshMotion(CustomImplicitOperation):
 if __name__ == "__main__":
     fea = MagnetostaticProblem()
     sim = Simulator(M(fea=fea))
-    
-#    sim['edge_deltas'] = generateMeshMovement(-pi/36)
-#    sim.run()
+    sim['edge_deltas'] = generateMeshMovement(-pi/36)
+    sim.run()
     plt.figure(1)
     fea.moveMesh(fea.uhat)
     plot(fea.mesh)
-#    plt.show()
-
-    sim.check_partials()
+    plt.show()
+    
+#    print("CSDL: Running check_partials()...")
+#    sim.check_partials()
     
