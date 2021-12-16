@@ -79,35 +79,35 @@ m.add_all_entities_to_physical_group(geometry_type='curves')
 
 
 ''' ---------------------------------- FFD ---------------------------------- '''
-f1 = lm.Face([magnet_points[0][0], magnet_points[0][1]], input_type='polar')
+f1 = lm.Face([magnet_points[0][0], magnet_points[0][1], magnet_points[0][2], magnet_points[0][3]], input_type='polar')
 f1.add_shape_parameter(
-    name='magnet_outer_radius_1',
-    axis='r',
-    def_type = 'constant'
+    name='magnet_1_width',
+    axis='theta',
+    def_type = 'linear'
 )
 m.add_face(f1)
 
-f2 = lm.Face([magnet_points[0][2], magnet_points[0][3]], input_type='polar')
+f2 = lm.Face([magnet_points[1][0], magnet_points[1][1], magnet_points[1][2], magnet_points[1][3]], input_type='polar')
 f2.add_shape_parameter(
-    name='magnet_inner_radius_1',
-    axis='r',
+    name='magnet_2_width',
+    axis='theta',
     def_type = 'linear'
 )
 m.add_face(f2)
 
-f3 = lm.Face([magnet_points[1][0], magnet_points[1][1]], input_type='polar')
+f3 = lm.Face([magnet_points[2][0], magnet_points[2][1], magnet_points[2][2], magnet_points[2][3]], input_type='polar')
 f3.add_shape_parameter(
-    name='magnet_inner_radius_1',
-    axis='r',
-    def_type = 'constant'
+    name='magnet_3_width',
+    axis='theta',
+    def_type = 'linear'
 )
 m.add_face(f3)
 
-f4 = lm.Face([magnet_points[1][2], magnet_points[1][3]], input_type='polar')
+f4 = lm.Face([magnet_points[3][0], magnet_points[3][1], magnet_points[3][2], magnet_points[3][3]], input_type='polar')
 f4.add_shape_parameter(
-    name='magnet_inner_radius_1',
-    axis='r',
-    def_type = 'constant'
+    name='magnet_4_width',
+    axis='theta',
+    def_type = 'linear'
 )
 m.add_face(f4)
 
@@ -134,17 +134,23 @@ def getInitialEdgeCoords():
     # Ru: trim out the origin (x=0,y=0) where there's no nearby (dist<1e-10) nodes in the mesh
     return old_edge_coords[:-2]
 def generateMeshMovement(angle):
-    delta = np.zeros((4 * vars(m)['num_ffd_faces'], 2)) # array of deltas applied to FFD FACES
-    delta[:8, 1] = 0.25
-    for i in range(4):
+    # delta = np.zeros((4 * vars(m)['num_ffd_faces'], 2)) # array of deltas applied to FFD FACES
+    # delta[:8, 1] = 0
+    # for i in range(4):
+    #     delta[2 * i, 0] = angle
+    #     delta[2 * i + 1, 0] = -angle
+    # #delta[:8, 0] = np.pi/6
+
+    # delta[8:, 1] = 0
+    # delta[8:, 0] = 0
+    delta = np.zeros((4 * vars(m)['num_ffd_faces'], 2))
+    for i in range(8):
         delta[2 * i, 0] = angle
         delta[2 * i + 1, 0] = -angle
-    #delta[:8, 0] = np.pi/6
-
-    delta[8:, 1] = 0.25
-    delta[8:, 0] = 0
     edge_deltas= m.test_ffd_edge_parametrization_polar(delta,   
                                                 output_type='cartesian')
+    # print(edge_deltas)
+    # exit()
     return edge_deltas[:-2]
 # outputs of line 132 are the new edge coordinates, old edge coordinates, the delta array and edge indices
 

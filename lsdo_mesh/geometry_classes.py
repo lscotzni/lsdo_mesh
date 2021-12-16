@@ -938,8 +938,8 @@ class Mesh(object):
         return old_edge_coords
         
     def test_ffd_edge_parametrization_polar(self, delta, output_type):
-        if delta.shape != (int(4 * self.num_ffd_faces), 2):
-            raise TypeError('Shape of delta numpy array must be 4 * # FFD faces * 2')
+        # if delta.shape != (int(4 * self.num_ffd_faces), 2):
+        #     raise TypeError('Shape of delta numpy array must be 4 * # FFD faces * 2')
         delta = delta.reshape((2 * delta.shape[0], ))
 
         # --- FFD TEST

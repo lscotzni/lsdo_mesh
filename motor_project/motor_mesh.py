@@ -17,7 +17,7 @@ p       = 12 # poles per 360 degrees
 s       = 3 * p # stator slots per 360 degrees
 m       = 3 # number of phases for stator winding current
 
-ks      = 1 # target mesh size
+ks      = 1e-3 # target mesh size
 
 ''' -------------------- Key Geometrical Parameters of Motor -------------------- '''
 # # Key Rotor Angles for Geometry
@@ -33,19 +33,19 @@ theta_sso   = .5 * theta_t # Angular sweep of total area of windings
 theta_ssi   = .3 * theta_sso # Angular sweep of tooth tip separation
 
 # Need to define each of these
-Rr          = 80.
-Rtm         = 79.
-Rtb         = 77.5
-Rbb         = 75.
-Rbm         = 74.5
-Rin         = 60. # Inner Radius of Rotor
+Rr          = 80.e-3
+Rtm         = 79.e-3
+Rtb         = 77.5e-3
+Rbb         = 75.e-3
+Rbm         = 74.5e-3
+Rin         = 50.e-3 # Inner Radius of Rotor
 
-Rout        = 115.
-Rsy         = 103.
-Rssi        = 83.
-Rs          = 81.
+Rout        = 120.e-3
+Rsy         = 103.e-3
+Rssi        = 83.e-3
+Rs          = 81.e-3
 
-D           = 175. # Domain Radius
+D           = 175.e-3 # Domain Radius
 Ras         = (Rr+Rs)/2 # Radius splitting air-gap mesh of rotor and stator
 RR          = (Rin+Rr)/2 # Midpoint to cut air-gap mesh in Rotor
 RS          = (Rsy+Rout)/2 # # Midpoint to cut air-gap mesh in Stator

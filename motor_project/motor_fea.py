@@ -77,17 +77,17 @@ def RelativePermeability(subdomain, u, uhat):
         B = as_vector((gradu[1], -gradu[0]))
         norm_B = sqrt(dot(B, B) + DOLFIN_EPS)
         
-        # mu = conditional(
-        #     lt(norm_B, 1.004),
-        #     linearPortion(norm_B),
-        #     conditional(
-        #         lt(norm_B, 1.433),
-        #         cubicPortion(norm_B),
-        #         (expA * exp(expB*norm_B + expC) + 1)
-        #     )
-        # )
-        mu = 4000. # constant case
-    elif subdomain == 3: # TITANIUM
+        mu = conditional(
+            lt(norm_B, 1.004),
+            linearPortion(norm_B),
+            conditional(
+                lt(norm_B, 1.433),
+                cubicPortion(norm_B),
+                (expA * exp(expB*norm_B + expC) + 1)
+            )
+        )
+        # mu = 4000. # constant case
+    elif subdomain == 3: 
         mu = 1.00 # insert value for titanium or shaft material
     elif subdomain >= 4 and subdomain <= 28: # AIR
         mu = 1.0
@@ -121,7 +121,10 @@ def JS(v,uhat,p,s,Hc):
     stator_winding_index_start  = 4 + 3 * p + 1
     stator_winding_index_end    = stator_winding_index_start + num_windings
     Jw = 0.
-    JA, JB, JC = 1., 1., 1.
+    # N = 39 / 1e-3
+    N = 39
+    JA, JB, JC = 94.26 * N, 47.13 * N, -47.13 * N
+    # JA, JB, JC = 66.65 * N, -91.04 * N, 24.4 * N
     for i in range(int((num_windings) / (num_phases * coil_per_phase))):
         coil_start_ind = i * num_phases * coil_per_phase
         for j in range(3):
@@ -267,6 +270,7 @@ class MagnetostaticProblem(object):
             )
         
         return subdomain_avg_A_z, subdomain_avg_A_z_deltas
+
     def fluxLinkage(self):
         pass
         
@@ -363,11 +367,18 @@ class MagnetostaticProblem(object):
         self.B = project(as_vector((self.A_z.dx(1),-self.A_z.dx(0))),
                         VectorFunctionSpace(self.mesh,'DG',0))
 
-        subdomain_range = np.arange(41,112)
-        self.winding_delta_A_z = self.extractSubdomainAverageA_z(
-            func=self.A_z,
-            subdomain_range=subdomain_range
-        )[1]
+        subdomain_range = np.arange(41,112+1)
+        self.winding_delta_A_z = np.array(
+            self.extractSubdomainAverageA_z(
+                func=self.A_z,
+                subdomain_range=subdomain_range
+        )[1])
+
+        area_func_unit = interpolate(Constant(1.0), self.A_z.function_space())
+        self.winding_area = self.getSubdomainArea(
+            func_unit=area_func_unit,
+            subdomain=42
+        )
 
         # print(self.winding_delta_A_z)
         
@@ -418,6 +429,11 @@ if __name__ == "__main__":
     # problem.solveMeshMotion()
     problem.solveMagnetostatic()
 
+    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
+    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
+    vtkfile_A_z << problem.A_z
+    vtkfile_B << problem.B
+
     ###### Test the average calculation for the flux linkage
     subdomain_range = np.arange(41,112)
     asdf, deltas  = problem.extractSubdomainAverageA_z(
@@ -435,10 +451,10 @@ if __name__ == "__main__":
         print(deltas[i])
     
     plt.figure(1)
-    # plot(problem.A_z)
-    plot(problem.B, linewidth=40)
+    plot(problem.A_z)
+    # plot(problem.B, linewidth=40)
 #    ALE.move(problem.mesh, problem.uhat)
-#     plot(problem.mesh)
+    # plot(problem.mesh)
 #    print(problem.A_z.vector().get_local()[:10])
     plt.show()
 

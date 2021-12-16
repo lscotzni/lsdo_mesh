@@ -303,6 +303,7 @@ class MagnetostaticProblem(object):
     def setUpMeshMotionSolver(self):
         if self.edge_deltas is None:
             self.edge_deltas = generateMeshMovement(pi/36)
+            # self.edge_deltas = generateMeshMovement(0.)
         self.STEPS, self.increment_deltas = self.getDisplacementSteps(self.edge_deltas)
         
         ####### Formulation of mesh motion as a hyperelastic problem #######
@@ -405,9 +406,11 @@ if __name__ == "__main__":
     problem.solveMagnetostatic()
     plt.figure(1)
     problem.moveMesh()
-    plot(problem.mesh,linewidth=0.4)
+    plot(problem.mesh,linewidth=0.2)
     plot(problem.subdomains_mf)
+    plt.savefig('deformed_magnet_disk_mesh.pdf')
     plt.show()
+
 ##### Test the partial derivatives of the mesh motion subproblem
 #    dRm_dedge = problem.getBCDerivatives()
 #    print(np.linalg.norm(convertToDense(dRm_dedge)))
