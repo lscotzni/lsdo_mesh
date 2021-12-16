@@ -7,9 +7,9 @@ from magnetostatic_fea import *
 class M(Model):
 
     def initialize(self):
-        print("="*40)
-        print("CSDL: Running initialize()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running initialize()...")
+#        print("="*40)
         self.parameters.declare('fea')
         
     def define(self):
@@ -30,15 +30,15 @@ class MagneticStates(CustomImplicitOperation):
     output: A_z
     """
     def initialize(self):
-        print("="*40)
-        print("CSDL: Running initialize()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running initialize()...")
+#        print("="*40)
         self.parameters.declare('fea')
         
     def define(self):
-        print("="*40)
-        print("CSDL: Running define()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running define()...")
+#        print("="*40)
         
         self.fea = self.parameters['fea']
         self.input_size = self.fea.total_dofs_uhat
@@ -54,9 +54,9 @@ class MagneticStates(CustomImplicitOperation):
         self.bcs = self.fea.setBCMagnetostatic()
         
     def evaluate_residuals(self, inputs, outputs, residuals):
-        print("="*40)
-        print("CSDL: Running evaluate_residuals()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running evaluate_residuals()...")
+#        print("="*40)
         update(self.fea.uhat, inputs['uhat'])
         update(self.fea.A_z, outputs['A_z'])
         
@@ -65,9 +65,9 @@ class MagneticStates(CustomImplicitOperation):
         residuals['A_z'] = resMS.get_local()
     
     def solve_residual_equations(self, inputs, outputs):
-        print("="*40)
-        print("CSDL: Running solve_residual_equations()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running solve_residual_equations()...")
+#        print("="*40)
         update(self.fea.uhat, inputs['uhat'])
         update(self.fea.A_z, outputs['A_z'])
         
@@ -77,9 +77,9 @@ class MagneticStates(CustomImplicitOperation):
         update(self.fea.A_z, outputs['A_z'])
         
     def compute_derivatives(self, inputs, outputs, derivatives):
-        print("="*40)
-        print("CSDL: Running compute_derivatives()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running compute_derivatives()...")
+#        print("="*40)
         update(self.fea.uhat, inputs['uhat'])
         update(self.fea.A_z, outputs['A_z'])
         
@@ -89,9 +89,9 @@ class MagneticStates(CustomImplicitOperation):
         
     def compute_jacvec_product(self, inputs, outputs, 
                                 d_inputs, d_outputs, d_residuals, mode):
-        print("="*40)
-        print("CSDL: Running compute_jacvec_product()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running compute_jacvec_product()...")
+#        print("="*40)
         if mode == 'fwd':
             if 'A_z' in d_residuals:
                 if 'A_z' in d_outputs:
@@ -114,9 +114,9 @@ class MagneticStates(CustomImplicitOperation):
                             self.dRdf, self.fea.dR)
                     
     def apply_inverse_jacobian(self, d_outputs, d_residuals, mode):
-        print("="*40)
-        print("CSDL: Running apply_inverse_jacobian()...")
-        print("="*40)
+#        print("="*40)
+#        print("CSDL: Running apply_inverse_jacobian()...")
+#        print("="*40)
         
         if mode == 'fwd':
             d_outputs['A_z'] = self.fea.solveLinearFwd(self.A, d_residuals['A_z'])
@@ -130,24 +130,19 @@ if __name__ == "__main__":
     fea.solveMeshMotion()
     sim = Simulator(M(fea=fea))
     from matplotlib import pyplot as plt
-#    plt.figure(1)
-#    fea.moveMesh()
-#    plot(fea.mesh)
-#    plt.show()
 
-
+    print("CSDL: Running the model...")
     sim.run()
 #    sim.visualize_implementation()
     fea.A_z.vector().set_local(sim['A_z'])
-    plt.figure(2)
-    fea.moveMesh()
+    plt.figure(1)
+    fea.moveMesh(fea.uhat)
     # plot(fea.A_z)
-    plot(fea.mesh, linewidth=0.)
+    plot(fea.mesh, linewidth=0.1)
     plot(fea.subdomains_mf)
     plt.show()
-    exit()
-
     
-    sim.check_partials()
+#    print("CSDL: Running check_partials()...")
+#    sim.check_partials()
     
 
