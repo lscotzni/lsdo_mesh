@@ -375,13 +375,24 @@ class MagnetostaticProblem(object):
         )[1])
 
         area_func_unit = interpolate(Constant(1.0), self.A_z.function_space())
+
         self.winding_area = self.getSubdomainArea(
             func_unit=area_func_unit,
             subdomain=42
         )
-
-        # print(self.winding_delta_A_z)
         
+        self.magnet_area = self.getSubdomainArea(
+            func_unit=area_func_unit,
+            subdomain=29
+        )
+
+        steel_subdomains = [1, 2, 3]
+        self.steel_area = []
+        for subdomain in steel_subdomains:
+            self.steel_area += self.getSubdomainArea(
+                func_unit=area_func_unit,
+                subdomain=subdomain
+            )
 
     def solveLinearFwd(self, A, dR):
         """

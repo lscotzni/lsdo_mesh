@@ -6,6 +6,7 @@ from csdl_om import Simulator
 from post_processing_dir.efficiency_model import EfficiencyModel
 from post_processing_dir.flux_linkage_model import FluxLinkageModel
 from post_processing_dir.electrical_model import ElectricalModel
+from post_processing_dir.mass_model import MassModel
 from motor_fea import *
 
 class PostProcessingModelDuplicate(Model):
@@ -39,6 +40,7 @@ class PostProcessingModel(Model):
         flux_linkage_model  = self.add(FluxLinkageModel(), name='flux_linkage_model')
         electrical_model    = self.add(ElectricalModel(), name='electrical_model')
         efficiency_model    = self.add(EfficiencyModel(), name='efficiency_model')
+        mass_model          = self.add(MassModel(), name='mass_model')
 
         # self.connect('omega','electrical_model.omega')
         # self.connect('omega','efficiency_model.omega')
@@ -55,6 +57,8 @@ if __name__ ==  '__main__':
     fea.solveMagnetostatic()
     winding_delta_A_z   = fea.winding_delta_A_z
     winding_area        = fea.winding_area
+    magnet_area         = fea.magnet_area
+    steel_area          = fea.steel_area
     print(winding_area)
     # print(winding_delta_A_z.shape)
     motor_length_array = np.linspace(2,10,20)
