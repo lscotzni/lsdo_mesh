@@ -27,7 +27,7 @@ class ElectricalModel(Model): # could also call Battery Model?
         )
 
         motor_length = self.declare_variable(name='motor_length', shape=(1,))
-        num_windings = self.declare_variable(name='num_windings', shape=(1,))
+        num_windings = self.declare_variable(name='num_windings', shape=(1,), val=39)
         winding_area = self.declare_variable(name='winding_area')
 
         # flux_linkage_abc  = self.create_input(name='flux_linkage_abc', shape=(3,))
@@ -45,14 +45,11 @@ class ElectricalModel(Model): # could also call Battery Model?
         
         # wire_resistance = self.create_input(name='wire_resistance')
         # wire_resistance = 1.68e-8 * motor_length / winding_area * 72  /  39
-        wire_resistance = 1.68e-8 * motor_length / (winding_area/39)
+        wire_resistance = 1.68e-8 * motor_length / (winding_area/39) * 72
         wire_resistance = self.register_output(
             name='wire_resistance',
             var = wire_resistance
         )
-
-        # NEEDED FOR DQ TRANSFORM MATRIX
-        two_third_offset = self.declare_variable(name='two_third_offset', val=2*np.pi/3)
 
         # -------------------- DQ TRANSFORM MATRICES --------------------
         transform_matrix_forward = self.create_output(
@@ -61,11 +58,11 @@ class ElectricalModel(Model): # could also call Battery Model?
         )
 
         transform_matrix_forward[0] = 2/3 * csdl.cos(theta)
-        transform_matrix_forward[1] = 2/3 * csdl.cos(theta - two_third_offset)
-        transform_matrix_forward[2] = 2/3 * csdl.cos(theta + two_third_offset)
+        transform_matrix_forward[1] = 2/3 * csdl.cos(theta - 2*np.pi/3)
+        transform_matrix_forward[2] = 2/3 * csdl.cos(theta + 2*np.pi/3)
         transform_matrix_forward[3] = -2/3 * csdl.sin(theta)
-        transform_matrix_forward[4] = -2/3 * csdl.sin(theta - two_third_offset)
-        transform_matrix_forward[5] = -2/3 * csdl.sin(theta + two_third_offset)
+        transform_matrix_forward[4] = -2/3 * csdl.sin(theta - 2*np.pi/3)
+        transform_matrix_forward[5] = -2/3 * csdl.sin(theta + 2*np.pi/3)
 
         transform_matrix_reverse = self.register_output(
             name='transform_matrix_reverse',
@@ -79,18 +76,14 @@ class ElectricalModel(Model): # could also call Battery Model?
         )
 
         # -------------------- DQ PHASE CURRENT --------------------
-        phase_current_dq = self.register_output(
-            name='phase_current_dq',
-            var=csdl.matvec(transform_matrix_forward, phase_current_abc)
-        )
-
-        # -------------------- DQ RESISTANCE MATRIX --------------------
-        # resistance_matrix_dq = self.create_output(
-        #     name='resistance_matrix_dq',
-        #     val=0,
-        #     shape=(2,2),
+        # phase_current_dq = self.register_output(
+        #     name='phase_current_dq',
+        #     var=csdl.matvec(transform_matrix_forward, phase_current_abc)
         # )
-        # resistance_matrix_dq[0:4:3] = csdl.expand(wire_resistance,(2,),'i->ia')
+        phase_current_dq = self.declare_variable(
+            name='phase_current_dq',
+            shape=(2,),
+        )
 
         # -------------------- DQ PHASE VOLTAGE MATRIX --------------------
         phase_voltage_dq = self.create_output(
@@ -98,8 +91,8 @@ class ElectricalModel(Model): # could also call Battery Model?
             val=0.,
             shape=(2,)
         )
-        phase_voltage_dq[0] = wire_resistance * phase_current_dq[0] - 120 * flux_linkage_dq[1]
-        phase_voltage_dq[1] = wire_resistance * phase_current_dq[1] + 120 * flux_linkage_dq[0]
+        phase_voltage_dq[0] = wire_resistance * phase_current_dq[0] - omega * flux_linkage_dq[1]
+        phase_voltage_dq[1] = wire_resistance * phase_current_dq[1] + omega * flux_linkage_dq[0]
 
         # -------------------- ABC PHASE VOLTAGE MATRIX --------------------
         phase_voltage_abc = self.create_output(
@@ -111,7 +104,8 @@ class ElectricalModel(Model): # could also call Battery Model?
 
         input_power = self.register_output(
             name='input_power',
-            var=csdl.dot(phase_voltage_abc, phase_current_abc)
+            # var=csdl.dot(phase_voltage_abc, phase_current_abc)
+            var=3/2 * csdl.dot(phase_voltage_dq, phase_current_dq)
         )
 
         output_torque = self.register_output(

@@ -100,7 +100,7 @@ def RelativePermeability(subdomain, u, uhat):
 
 # END NEW PERMEABILITY
 
-def JS(v,uhat,p,s,Hc):
+def JS(v,uhat,p,s,Hc,i_abc):
     Jm = 0.
     gradv = gradx(v,uhat)
     base_magnet_dir = 2 * np.pi / p / 2
@@ -121,10 +121,10 @@ def JS(v,uhat,p,s,Hc):
     stator_winding_index_start  = 4 + 3 * p + 1
     stator_winding_index_end    = stator_winding_index_start + num_windings
     Jw = 0.
-    # N = 39 / 1e-3
     N = 39
-    JA, JB, JC = 94.26 * N, 47.13 * N, -47.13 * N
+    # JA, JB, JC = 94.26 * N, 47.13 * N, -47.13 * N
     # JA, JB, JC = 66.65 * N, -91.04 * N, 24.4 * N
+    JA, JB, JC = i_abc[0] * N + DOLFIN_EPS, i_abc[1] * N + DOLFIN_EPS, i_abc[2] * N + DOLFIN_EPS
     for i in range(int((num_windings) / (num_phases * coil_per_phase))):
         coil_start_ind = i * num_phases * coil_per_phase
         for j in range(3):
@@ -149,7 +149,7 @@ def JS(v,uhat,p,s,Hc):
     
     return Jm + Jw
         
-def pdeRes(u,v,uhat,dx,p,s,Hc,vacuum_perm):
+def pdeRes(u,v,uhat,dx,p,s,Hc,vacuum_perm,i_abc):
     res = 0.
     gradu = gradx(u,uhat)
     gradv = gradx(v,uhat)
@@ -157,7 +157,7 @@ def pdeRes(u,v,uhat,dx,p,s,Hc,vacuum_perm):
     for i in range(num_components):
         res += 1./vacuum_perm*(1/RelativePermeability(i + 1, u, uhat))\
                 *dot(gradu,gradv)*dx(i + 1)
-    res -= JS(v,uhat,p,s,Hc)
+    res -= JS(v,uhat,p,s,Hc,i_abc)
     return res
 
 
@@ -169,7 +169,7 @@ class MagnetostaticProblem(object):
     """
     Preprocessor to set up the mesh and mesh functions
     """  
-    def __init__(self, mesh_file="motor_mesh_1"):
+    def __init__(self, mesh_file="motor_mesh_1", i_abc=[0., 0., 0.]):
 
         self.mesh_file = mesh_file
         self.initMesh()
@@ -181,6 +181,7 @@ class MagnetostaticProblem(object):
         self.p = 12
         self.s = 3 * self.p
         self.vacuum_perm = 4e-7 * np.pi
+        self.i_abc = i_abc
         
         self.uhat = Function(self.VHAT) # Function for the solution of the mesh motion
         self.uhat_old = Function(self.VHAT) # Function to apply the BCs of the mesh motion
@@ -240,7 +241,7 @@ class MagnetostaticProblem(object):
     def resMS(self):
         res_ms = pdeRes(
                 self.A_z,self.v,self.uhat,self.dx,
-                self.p,self.s,self.Hc,self.vacuum_perm)
+                self.p,self.s,self.Hc,self.vacuum_perm, self.i_abc)
         return res_ms
 
     def getSubdomainArea(self, func_unit, subdomain):
@@ -387,12 +388,19 @@ class MagnetostaticProblem(object):
         )
 
         steel_subdomains = [1, 2, 3]
-        self.steel_area = []
+        self.steel_area = 0
         for subdomain in steel_subdomains:
             self.steel_area += self.getSubdomainArea(
                 func_unit=area_func_unit,
                 subdomain=subdomain
             )
+        # NOTES FOR RU:
+        # NECESSARY OUTPUTS ARE:
+        #   - self.winding_delta_A_z
+        #   - self.winding_area
+        #   - self.magnet_area
+        #   - self.steel_area
+
 
     def solveLinearFwd(self, A, dR):
         """
