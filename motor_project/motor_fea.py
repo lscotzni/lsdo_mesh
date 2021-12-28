@@ -551,7 +551,7 @@ class MotorProblem(object):
 
 
         # Nonlinear solver parameters
-        REL_TOL_M = 1e-4
+        ABS_TOL_M = 1e-4
         MAX_ITERS_M = 100
 
 #        update(self.A_z, 0.1*np.ones(self.total_dofs_A_z))
@@ -560,7 +560,7 @@ class MotorProblem(object):
         solver_ms = NonlinearVariationalSolver(problem_ms)
         solver_ms.parameters['nonlinear_solver']='snes'
         solver_ms.parameters['snes_solver']['line_search'] = 'bt'
-        solver_ms.parameters['snes_solver']['relative_tolerance'] = REL_TOL_M
+        solver_ms.parameters['snes_solver']['absolute_tolerance'] = ABS_TOL_M
         solver_ms.parameters['snes_solver']['maximum_iterations'] = MAX_ITERS_M
         solver_ms.parameters['snes_solver']['linear_solver']='mumps'
         solver_ms.parameters['snes_solver']['error_on_nonconvergence'] = False
@@ -676,7 +676,7 @@ if __name__ == "__main__":
     problem = MotorProblem(i_abc=i_abc, old_edge_coords=old_edge_coords)
 
     problem.edge_deltas = edge_deltas
-    problem.solveMeshMotion()
+    # problem.solveMeshMotion()
     problem.solveMagnetostatic()
 
     vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')

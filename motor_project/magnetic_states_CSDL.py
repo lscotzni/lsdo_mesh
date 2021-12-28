@@ -142,21 +142,30 @@ if __name__ == "__main__":
         -iq * np.sin(-2*np.pi/3),
         -iq * np.sin(2*np.pi/3),
     ]
-    fea = MotorProblem(i_abc=i_abc)
+    f = open('init_edge_coords.txt', 'r+')
+    old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
+    f.close()
 
+    f = open('edge_coord_deltas.txt', 'r+')
+    edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
+    f.close()
+    # One-time computation for the initial edge coordinates from
+    # the code that creates the mesh file
+    # old_edge_coords = getInitialEdgeCoords()
+    fea = MotorProblem(i_abc=i_abc, old_edge_coords=old_edge_coords)
     # fea.solveMeshMotion()
     sim = Simulator(M(fea=fea))
     from matplotlib import pyplot as plt
-    print("CSDL: Running the model...")
-    sim.run()
-#    sim.visualize_implementation()
-    fea.A_z.vector().set_local(sim['A_z'])
-    plt.figure(1)
-    # fea.moveMesh(fea.uhat)
-    # plot(fea.A_z)
-    plot(fea.A_z)
-    # plot(fea.mesh, linewidth=0.1)
-    # plot(fea.subdomains_mf)
-    plt.show()
-
-    # sim.check_partials()
+#     print("CSDL: Running the model...")
+#     sim.run()
+# #    sim.visualize_implementation()
+#     fea.A_z.vector().set_local(sim['A_z'])
+#     plt.figure(1)
+#     # fea.moveMesh(fea.uhat)
+#     # plot(fea.A_z)
+#     plot(fea.A_z)
+#     # plot(fea.mesh, linewidth=0.1)
+#     # plot(fea.subdomains_mf)
+#     plt.show()
+    print("CSDL: Checking the partial derivatives...")
+    sim.check_partials()
