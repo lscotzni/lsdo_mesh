@@ -10,49 +10,48 @@ Mesh Generation of 2D Radial Flux PMSM
 #   !!!!!!! NOTE: NEED TO WRITE AS A FUNCTION !!!!!!!
 # =========================================================
 
-''' -------------------- Motor Attributes -------------------- '''
-p       = 12 # poles per 360 degrees
-# s       = p * 3 # stator slots per 360 degrees
-# p       = 3 # poles per 360 degrees
-s       = 3 * p # stator slots per 360 degrees
-m       = 3 # number of phases for stator winding current
+def MotorMeshGenerator(rotation_angles, file_name, poles):
 
-ks      = 1e-3 # target mesh size
+    ''' -------------------- Motor Attributes -------------------- '''
+    p       = poles # poles per 360 degrees
+    s       = 3 * p # stator slots per 360 degrees
+    m       = 3 # number of phases for stator winding current
 
-''' -------------------- Key Geometrical Parameters of Motor -------------------- '''
-# # Key Rotor Angles for Geometry
-theta_p     = 2*np.pi/p # Angular sweep of each Rotor Slice
-theta_m     = .6 * theta_p # Angular sweep of magnet
-# theta_b     = .0595 * theta_p # Angular sweep of magnet side piece separation (gap between each slice)
-# theta_g     = (theta_p - theta_m - theta_b)/2 # Angular sweep of each magnet air gap
-theta_g     = .1 * theta_m
+    ks      = 1e-2 # target mesh size
 
-# # Key Stator Angles for Geometry
-theta_t     = 2*np.pi/s # Angular sweep of each Stator Tooth
-theta_sso   = .5 * theta_t # Angular sweep of total area of windings
-theta_ssi   = .3 * theta_sso # Angular sweep of tooth tip separation
+    ''' -------------------- Key Geometrical Parameters of Motor -------------------- '''
+    # # Key Rotor Angles for Geometry
+    theta_p     = 2*np.pi/p # Angular sweep of each Rotor Slice
+    theta_m     = .6 * theta_p # Angular sweep of magnet
+    # theta_b     = .0595 * theta_p # Angular sweep of magnet side piece separation (gap between each slice)
+    # theta_g     = (theta_p - theta_m - theta_b)/2 # Angular sweep of each magnet air gap
+    theta_g     = .1 * theta_m
 
-# Need to define each of these
-Rr          = 80.e-3
-Rtm         = 79.e-3
-Rtb         = 77.5e-3
-Rbb         = 75.e-3
-Rbm         = 74.5e-3
-Rin         = 50.e-3 # Inner Radius of Rotor
+    # # Key Stator Angles for Geometry
+    theta_t     = 2.0 * np.pi / s # Angular sweep of each Stator Tooth
+    theta_sso   = .5 * theta_t # Angular sweep of total area of windings
+    theta_ssi   = .3 * theta_sso # Angular sweep of tooth tip separation
 
-Rout        = 120.e-3
-Rsy         = 103.e-3
-Rssi        = 83.e-3
-Rs          = 81.e-3
+    # Need to define each of these
+    Rr          = 80.e-3
+    Rtm         = 79.e-3
+    Rtb         = 77.5e-3
+    Rbb         = 75.e-3
+    Rbm         = 74.5e-3
+    # Rin         = 50.e-3 # Inner Radius of Rotor
+    Rin         = 35.e-3
 
-D           = 175.e-3 # Domain Radius
-Ras         = (Rr+Rs)/2 # Radius splitting air-gap mesh of rotor and stator
-RR          = (Rin+Rr)/2 # Midpoint to cut air-gap mesh in Rotor
-RS          = (Rsy+Rout)/2 # # Midpoint to cut air-gap mesh in Stator
+    Rout        = 120.e-3
+    Rsy         = 103.e-3
+    Rssi        = 83.e-3
+    Rs          = 81.e-3
 
-def MotorMeshGenerator(rotation_angle, file_name):
+    D           = 175.e-3 # Domain Radius
+    Ras         = (Rr+Rs)/2 # Radius splitting air-gap mesh of rotor and stator
+    RR          = (Rin+Rr)/2 # Midpoint to cut air-gap mesh in Rotor
+    RS          = (Rsy+Rout)/2 # # Midpoint to cut air-gap mesh in Stator
 
-    rho         = rotation_angle
+    rho         = rotation_angles
     m           = lm.Mesh(name=file_name, popup=True, rotation_angles=rho)
 
     # NOTE: need to fix implementation; the process does not like lists
@@ -74,42 +73,42 @@ def MotorMeshGenerator(rotation_angle, file_name):
     # -- Magnets and Air Slots
     magnet_air_slot_1_p     = [
         # lm.Point(Rbm, theta_b / 2 + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
-        lm.Point(Rbm, 2*np.pi/p*i + np.pi/p - theta_m/2 - theta_g, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rbm, 2*np.pi/p*i - theta_m/2 - theta_g, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_2_p     = [
         # lm.Point(Rtm, theta_b / 2 + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
-        lm.Point(Rtm, 2*np.pi/p*i + np.pi/p - theta_m/2 - theta_g, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rtm, 2*np.pi/p*i - theta_m/2 - theta_g, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_3_p     = [
         # lm.Point(Rbm, theta_b / 2 + theta_g + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
-        lm.Point(Rbm, 2*np.pi/p*i + np.pi/p - theta_m/2, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rbm, 2*np.pi/p*i - theta_m/2, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_4_p     = [
         # lm.Point(Rtm, theta_b / 2 + theta_g + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
-        lm.Point(Rtm, 2*np.pi/p*i + np.pi/p - theta_m/2, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rtm, 2*np.pi/p*i - theta_m/2, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_5_p     = [
         # lm.Point(Rbm, theta_b / 2 + theta_g + theta_m + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
-        lm.Point(Rbm, 2*np.pi/p*i + np.pi/p + theta_m/2, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rbm, 2*np.pi/p*i + theta_m/2, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_6_p     = [
         # lm.Point(Rtm, theta_b / 2 + theta_g + theta_m + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
-        lm.Point(Rtm, 2*np.pi/p*i + np.pi/p + theta_m/2, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rtm, 2*np.pi/p*i + theta_m/2, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_7_p     = [
         # lm.Point(Rbm, theta_p - theta_b / 2 + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
-        lm.Point(Rbm, 2*np.pi/p*i + np.pi/p + theta_m/2 + theta_g, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rbm, 2*np.pi/p*i + theta_m/2 + theta_g, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     magnet_air_slot_8_p    = [
         # lm.Point(Rtm, theta_p - theta_b / 2 + 2 * np.pi / p * i, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
-        lm.Point(Rtm, 2*np.pi/p*i + np.pi/p + theta_m/2 + theta_g, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
+        lm.Point(Rtm, 2*np.pi/p*i + theta_m/2 + theta_g, ms=ks, mode='polar', rotate_instance=True) for i in range(p)
     ]
 
     # -- Stator Outer Surface
@@ -533,7 +532,7 @@ def MotorMeshGenerator(rotation_angle, file_name):
     )
     # m.add_face(bbb)
 
-    pi_test = lm.Face([magnet_air_slot_3_p[1], magnet_air_slot_5_p[1]], input_type='polar')
+    pi_test = lm.Face([magnet_air_slot_3_p[2], magnet_air_slot_6_p[2]], input_type='polar')
     pi_test.add_shape_parameter(
         'inner_magnet_radius',
         'r',
@@ -541,14 +540,91 @@ def MotorMeshGenerator(rotation_angle, file_name):
     )
     m.add_face(pi_test)
 
+    # pi_test = lm.Face([magnet_air_slot_3_p[1]], input_type='polar')
+    # pi_test.add_shape_parameter(
+    #     'inner_magnet_radius',
+    #     'r',
+    #     'constant'
+    # )
+    # m.add_face(pi_test)
+
+    # BELOW TEST FFD FACES FOR NON-ROTATING INSTANCES, LIKE IN THE STATOR
+    stator_ffd = lm.Face([stator_inner_surface_1_p[0], stator_inner_surface_2_p[0]], input_type='polar')
+    stator_ffd.add_shape_parameter(
+        'stator_test_ffd',
+        'theta',
+        'constant',
+    )
+    # m.add_face(stator_ffd)
+
+    Ru_test_def_ffd = lm.Face(
+        [magnet_air_slot_1_p[0],
+            magnet_air_slot_2_p[0],
+            magnet_air_slot_3_p[0],
+            magnet_air_slot_4_p[0],
+            magnet_air_slot_5_p[0],
+            magnet_air_slot_6_p[0],
+            magnet_air_slot_7_p[0],
+            magnet_air_slot_8_p[0]],
+        input_type='polar',
+    )
+    Ru_test_def_ffd.add_shape_parameter(
+        'Ru_test_def_ffd',
+        'r',
+        'constant',
+    )
+    # m.add_face(Ru_test_def_ffd)
+
     m.add_all_entities_to_physical_group('curves')
 
     m.assemble(coordinate_system='polar')
 
-    # os.system('python3 msh2xdmf.py -d 2 ' + file_name + '.msh')
+    def getInitialEdgeCoords():
+        old_edge_coords = m.get_ffd_edge_old_coords(output_type='cartesian')
+        # Ru: trim out the origin (x=0,y=0) where there's no nearby (dist<1e-10) nodes in the mesh
+        return old_edge_coords[:-2]
+    def generateMeshMovement(angle=0.):
+        # delta = np.zeros((4 * vars(m)['num_ffd_faces'], 2)) # array of deltas applied to FFD FACES
+        # delta[:8, 1] = 0
+        # for i in range(4):
+        #     delta[2 * i, 0] = angle
+        #     delta[2 * i + 1, 0] = -angle
+        # #delta[:8, 0] = np.pi/6
+
+        # delta[8:, 1] = 0
+        # delta[8:, 0] = 0
+        delta = np.zeros((4 * vars(m)['num_ffd_faces'], 2))
+        # delta = np.zeros((8, 2))
+        for i in range(4):
+            delta[i, 1] = -.02 # shifting first magnet + air gaps radially in by 0.02 m
+        edge_deltas= m.test_ffd_edge_parametrization_polar(delta,   
+                                                    output_type='cartesian')
+        # print(edge_deltas)
+        # exit()
+        return edge_deltas[:-2]
+
+    old_edge_coords = getInitialEdgeCoords()
+    edge_deltas     = generateMeshMovement()
+
+    
+
+    init_edge_coords = 'init_edge_coords.txt'
+    # f1  = open(init_edge_coords, 'w')
+    # for i in range(old_edge_coords.shape[0]):
+    #     f.write(old_edge_coords[i] + '\n')
+    # f1.close()
+    np.savetxt(init_edge_coords, old_edge_coords)
+
+    edge_coord_deltas = 'edge_coord_deltas.txt'
+    # f2  = open(edge_coord_deltas, 'w')
+    # for i in range(edge_deltas.shape[0]):
+    #     f.write(edge_deltas[i] + '\n')
+    # f2.close()
+    np.savetxt(edge_coord_deltas, edge_deltas)
 
     return m
 
+# os.system('python3 msh2xdmf.py -d 2 ' + file_name + '.msh')
 # inner_rotor_f[0].return_coordinates()
 
 

@@ -6,18 +6,19 @@ from csdl_om import Simulator
 class EfficiencyModel(Model):
     def define(self):
         omega               = self.declare_variable('omega', shape=(1,))
-        winding_resistance  = self.declare_variable('winding_resistance')
+        wire_resistance     = self.declare_variable('wire_resistance')
         input_power         = self.declare_variable('input_power')
         output_torque       = self.declare_variable('output_torque', shape=(1,))
-        current_amplitude   = self.declare_variable('current_amplitude', 282.78)
+        current_amplitude   = self.declare_variable('current_amplitude', 282.78/3)
+        num_windings        = self.declare_variable('num_windings', 39)
 
         output_power = self.register_output(
             name='output_power',
             var=output_torque * omega
         )
 
-        copper_loss = (current_amplitude / 39)**2 * winding_resistance
-        # copper_loss = (current_amplitude/13)**2 * winding_resistance
+        copper_loss = (current_amplitude/num_windings)**2 * wire_resistance
+        # copper_loss = (current_amplitude/13)**2 * wire_resistance
         copper_loss = self.register_output(
             name='copper_loss',
             var=copper_loss

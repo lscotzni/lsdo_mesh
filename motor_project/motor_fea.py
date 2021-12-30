@@ -121,7 +121,7 @@ def JS(v,uhat,p,s,Hc,i_abc):
     stator_winding_index_start  = 4 + 3 * p + 1
     stator_winding_index_end    = stator_winding_index_start + num_windings
     Jw = 0.
-    N = 39
+    N = 13
     # JA, JB, JC = 94.26 * N, 47.13 * N, -47.13 * N
     # JA, JB, JC = 66.65 * N, -91.04 * N, 24.4 * N
     JA, JB, JC = i_abc[0] * N + DOLFIN_EPS, i_abc[1] * N + DOLFIN_EPS, i_abc[2] * N + DOLFIN_EPS
@@ -263,7 +263,8 @@ class MagnetostaticProblem(object):
         # winding_start, winding_end = 41, 112
         for subdomain in subdomain_range:
             subdomain_avg_A_z.append(
-                abs(self.getFuncAverageSubdomain(func, subdomain))
+                # abs(self.getFuncAverageSubdomain(func, subdomain))
+                self.getFuncAverageSubdomain(func, subdomain)
             )
         for i in range(int(len(subdomain_range)/2)):
             subdomain_avg_A_z_deltas.append(
@@ -444,7 +445,14 @@ class MagnetostaticProblem(object):
         ALE.move(self.mesh, self.uhat)
 
 if __name__ == "__main__":
-    problem = MagnetostaticProblem()
+    iq                  = 282.2 / 3
+    i_abc               = [
+        -iq * np.sin(0.),
+        -iq * np.sin(-2*np.pi/3),
+        -iq * np.sin(2*np.pi/3),
+    ]
+
+    problem = MagnetostaticProblem(i_abc=i_abc)
     # problem.solveMeshMotion()
     problem.solveMagnetostatic()
 
@@ -454,7 +462,7 @@ if __name__ == "__main__":
     vtkfile_B << problem.B
 
     ###### Test the average calculation for the flux linkage
-    subdomain_range = np.arange(41,112)
+    subdomain_range = np.arange(41,112+1)
     asdf, deltas  = problem.extractSubdomainAverageA_z(
         func=problem.A_z,
         subdomain_range=subdomain_range
@@ -468,9 +476,23 @@ if __name__ == "__main__":
         print("Delta A_z for Stator Tooth "+str(i+1))
         # print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+1))
         print(deltas[i])
+    print('------')
+
+    for i, ind in enumerate(subdomain_range):
+        func=problem.A_z
+        func_unit = interpolate(Constant(1.0), func.function_space())
+        print("Area of Stator Winding "+str(ind))
+        print(problem.getSubdomainArea(func_unit=func_unit, subdomain=ind))
+
+    # for i, ind in enumerate(subdomain_range):
+    #     func=problem.A_z
+    #     func_unit = interpolate(Constant(1.0), func.function_space())
+    #     print("Area of Stator Winding"+str(ind))
+    #     print(problem.getSubdomainArea(func_unit=func_unit, subdomain=i+1))
     
     plt.figure(1)
-    plot(problem.A_z)
+    asdf = plot(problem.A_z)
+    plt.colorbar(asdf)
     # plot(problem.B, linewidth=40)
 #    ALE.move(problem.mesh, problem.uhat)
     # plot(problem.mesh)

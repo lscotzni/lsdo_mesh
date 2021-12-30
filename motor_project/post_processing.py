@@ -77,7 +77,7 @@ class PostProcessingModel(Model):
         # create_input is like a simulator input (input to the ENTIRE model)
 
 if __name__ ==  '__main__':
-    rpm                 = 2500
+    rpm                 = 1000
     omega               = rpm * 2 * np.pi / 60.
     t                   = 0
 
@@ -85,9 +85,9 @@ if __name__ ==  '__main__':
     iq                  = -current_amplitude / 3
     i_dq                = [0., iq]
     i_abc               = [
-        -iq * np.sin(omega * t),
-        -iq * np.sin(omega * t - 2*np.pi/3),
-        -iq * np.sin(omega * t + 2*np.pi/3),
+        -iq * np.sin(omega * t + np.pi/2),
+        -iq * np.sin(omega * t - 2*np.pi/3 + np.pi/2),
+        -iq * np.sin(omega * t + 2*np.pi/3 + np.pi/2),
     ]
 
     fea = MagnetostaticProblem(i_abc=i_abc)
@@ -97,8 +97,9 @@ if __name__ ==  '__main__':
     magnet_area         = fea.magnet_area
     steel_area          = fea.steel_area
 
-    motor_length_array = np.linspace(2,10,20)
-    efficiency_array = []
+    # motor_length_array = np.linspace(2,10,20)
+    motor_length_array = np.linspace(0.5,1.5,10)
+    efficiency_array, mass_array = [], []
     motor_length = motor_length_array[0]
     for length in motor_length_array:
         aaa = PostProcessingModel(
@@ -128,19 +129,32 @@ if __name__ ==  '__main__':
         print('output torque:', sim['output_torque'])
         print('copper_loss:', sim['copper_loss'])
         print('efficiency:', sim['efficiency'])
+        print('total mass:', sim['total_mass'])
         print('---')
         efficiency_array.extend(sim['efficiency'])
+        mass_array.extend(sim['total_mass'])
 
-        print(sim['transform_matrix_forward'])
-        print(sim['transform_matrix_reverse'])
-        print(sim['winding_delta_A_z'])
+        # print(sim['transform_matrix_forward'])
+        # print(sim['transform_matrix_reverse'])
+        # print(sim['winding_delta_A_z'])
         # exit()
     
     print(efficiency_array)
+    print(mass_array)
 
 
     import matplotlib.pyplot as plt
     plt.figure(1)
     plt.plot(motor_length_array, efficiency_array)
+    plt.ylim([0.95 * min(efficiency_array), 1.05 * max(efficiency_array)])
+    plt.xlabel('Motor Length')
+    plt.ylabel('Efficiency')
+
+    plt.figure(2)
+    plt.plot(motor_length_array, mass_array)
+    plt.ylim([0.95 * min(mass_array), 1.05 * max(mass_array)])
+    plt.xlabel('Motor Length')
+    plt.ylabel('Motor Mass (kg)')
+
     plt.show()
         

@@ -23,9 +23,8 @@ c3 = lm.Curve(p3, p4, origin, curve_type='arc')
 c4 = lm.Curve(p4, p1)
 
 s = lm.Surface([c1, c2, c3, c4], input_type='curves')
-s = lm.Surface([p1, p2, p3, p4], input_type='polygon')
+# s = lm.Surface([p1, p2, p3, p4], input_type='polygon') # ERROR APPEARS BC EDGE PARAMETRIZATION ONLY EXISTS IN POLAR
 m.add_entity(s)
-
 
 
 # ----------------------------------- FFD -----------------------------------
@@ -39,19 +38,24 @@ v4 = lm.Vertex(ro - dr, t0 - dt, mode='polar')
 v = [v1, v2, v3, v4]
 
 f1 = lm.Face([p1], input_type='polar', delta=10)
-f1.add_shape_parameter(name='p1_radius', axis='r', degree=1)
+f1.add_shape_parameter(name='p1_radius', axis='r', def_type='constant')
 # change degree to type = constant, linear, ...
 m.add_face(f1)
 
 
-f2 = lm.Face([p1, p2], input_type='polar')
-f2.add_shape_parameter(name='p2_radius', axis='r', degree=1)
-m.add_face(f2)
+# f2 = lm.Face([p2], input_type='polar')
+# f2.add_shape_parameter(name='p2_radius', axis='r', def_type='linear')
+# m.add_face(f2)
 
-# print(vars(f2))
+# f34 = lm.Face([p3, p4], input_type='polar', delta=15)
+# f34.add_shape_parameter(name='p34_radius', axis='r', def_type='linear')
+# m.add_face(f34)
 
 m.assemble(coordinate_system='polar')
-vertices = vars(f1)['face_vertices']
+
+mesh_model = m.mesh_model
+print(vars(mesh_model))
+# vertices = vars(f1)['face_vertices']
 # print(vars(vertices[0])) # the face vertices properties hold the cartesian coordinates
 # print(f1.return_coordinates())
 # print(f1.return_coordinates('polar'))

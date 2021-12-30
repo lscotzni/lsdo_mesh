@@ -58,7 +58,9 @@ def rotate(entities=None, angle=[], center_point = None, copy = True):
                 ms  = list(vars(point)['properties'].values())[3]
             p0  = np.array(list(vars(point)['properties'].values())[:3])
 
-            rot_matrix = np.array([np.cos(angle[2]), -np.sin(angle[2]), np.sin(angle[2]), np.cos(angle[2])]).reshape((2,2))
+            rot_matrix = np.array(
+                [np.cos(angle[2]), -np.sin(angle[2]), np.sin(angle[2]), np.cos(angle[2])]
+            ).reshape((2,2))
 
             # p1  = [np.dot(rot_matrix[0,:], p0[:2]) - cp[0], np.dot(rot_matrix[1,:], p0[:2])  - cp[1], 0.] + cp
             p1 = [
@@ -73,7 +75,8 @@ def rotate(entities=None, angle=[], center_point = None, copy = True):
                 elif isinstance(first_entity, Vertex):
                     rotated_points.append(Vertex(p1[0], p1[1]))
             elif copy == False:
-                pass
+                if isinstance(first_entity, Point):
+                    pass
             
         return rotated_points
     # elif isinstance(first_entity, Surface) or isinstance(first_entity, Face):

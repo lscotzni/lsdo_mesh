@@ -5,12 +5,23 @@ from csdl_om import Simulator
 from motor_mesh import MotorMeshGenerator
 
 rotor_rotations     = np.array([
-    i * 45 * np.pi / 180 for i in range(1)
+    i * 45 * np.pi / 180 for i in range(2)
 ])
 
+test = False
+if test:
+    p = 4
+    base_file_name = 'motor_mesh_test'
+else:
+    p = 12
+    base_file_name = 'motor_mesh'
+
 mesh_objects = []
-base_file_name = 'motor_mesh'
-mesh_object = MotorMeshGenerator(rotor_rotations, base_file_name)
+mesh_object = MotorMeshGenerator(
+    rotation_angles=rotor_rotations, 
+    file_name=base_file_name,
+    poles=p,
+)
 
 csdl_mesh_model = vars(mesh_object)['mesh_model']
 print(' ------------------------- CSDL MODEL VARIABLE CHECK -------------------------')

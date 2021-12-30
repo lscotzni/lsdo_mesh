@@ -1,6 +1,7 @@
 # if even: divide by 2
 # if odd: multiply by 3 and add 1
 import numpy as np
+cimport numpy
 
 def collatz_steps(val):
 

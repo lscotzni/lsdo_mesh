@@ -17,7 +17,7 @@ p       = 3 # poles per 360 degrees
 s       = 3 * p # stator slots per 360 degrees
 m       = 3 # number of phases for stator winding current
 
-ks      = 1 # target mesh size
+ks      = 10 # target mesh size
 
 ''' -------------------- Key Geometrical Parameters of Motor -------------------- '''
 # # Key Rotor Angles for Geometry
@@ -493,6 +493,7 @@ mesh_points  = m.get_coordinates(coord_sys='cartesian')
 # plt.show()
 inner_rotor_f = []
 for i in range(len(rotor_inner_surface_p)):
+# for i in range(1):
     inner_rotor_f.append(
         lm.Face(
             rotor_inner_surface_p[i],
@@ -500,7 +501,7 @@ for i in range(len(rotor_inner_surface_p)):
         )
     )
 
-    m.add_face(inner_rotor_f[0])
+    m.add_face(inner_rotor_f[i])
 
     inner_rotor_f[i].add_shape_parameter(
         'Inner Rotor Radius', 

@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 '''
 -------------------- REMOVING DUPLICATE POINTS --------------------
@@ -7,26 +8,51 @@ import numpy as np
 def remove_duplicate_points(points=None, point_mesh_size=None, point_rotate_instance=None, curves=None, eps=1.e-8):
     dummy_mesh_size     = False
 
+    # print(type(points))
+    # print('points:', points)
+    # print(type(point_mesh_size))
+    # print('point_mesh_size:', point_mesh_size)
+    # print(type(point_rotate_instance))
+    # print('point_rotate_instance:', point_rotate_instance)
+    # print(type(curves))
+    # print('curves:', curves)
+    # exit()
+
     # This block is how to deal with code for FFD duplicates (since we don't have a mesh size)
     if point_mesh_size is None:
         point_mesh_size = np.zeros(len(points))
         dummy_mesh_size = True
-    
+
+    t1 = time.time()
     point_indices_to_connect = []
+    iterated_indices = []
     for i in range(len(points)):
+        if i in iterated_indices:
+            continue
         for j in range(i+1,len(points)):
             if np.linalg.norm(np.array(points[i,:] - points[j,:])) < eps:
-                if j not in point_indices_to_connect:
-                    point_indices_to_connect.append((i,j))
+                point_indices_to_connect.append((i,j))
+                iterated_indices.append(j)
+                # if j not in point_indices_to_connect:
+                #     point_indices_to_connect.append((i,j))
 
-    # consider switching lines 18 and 19 for speed; searches might be faster & no point to calculate
-    # if we don't need to consider the duplicate
+    t2 = time.time()
+    print(point_indices_to_connect)
+    print('duplicate indices length', len(point_indices_to_connect))
+    print('point connection time:', t2 - t1)
+
+    # NOTE: full motor takes 292 seconds and point_indices_to_connect is 178760 long
+
     # print(point_indices_to_connect[:10])
     print('Completed search of point indices connections.')
     # print('{} points were connected out of {} points.'.format(len(point_indices_to_connect), len(points)))
     
     new_points, new_point_mesh_size, new_point_rotate_instances = combine_points(points, point_mesh_size, point_rotate_instance, point_indices_to_connect)
+    t3 = time.time()
     print('Points combined.')
+    print('num new points', new_points.shape[0])
+    print('duplicate removal time:', t3 - t2)
+    # exit()
 
     new_curves = np.zeros(len(curves), dtype=int)
     for i,new_point in enumerate(new_points):
@@ -46,7 +72,7 @@ def combine_points(points, point_mesh_size, point_rotate_instance, point_indices
     new_point_rotate_instances = np.delete(point_rotate_instance,[indices[1] for indices in point_indices_to_connect],axis=0)
     return new_points, new_point_mesh_size, new_point_rotate_instances
 
-#--------------------------------------------------------------------------------
+
 
 '''
 -------------------- REMOVING DUPLICATE CURVES --------------------
