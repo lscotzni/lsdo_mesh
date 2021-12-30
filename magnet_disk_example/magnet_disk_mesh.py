@@ -25,7 +25,7 @@ origin = lm.Point(0.0, 0.0, ms=ks)
 disk_bound_points = [
     lm.Point(rd, np.pi / 2 * i, ms=ks, mode='polar') for i in range(4)
 ]
- 
+
 # MAGNET POINTS:
 magnet_points = [[
     lm.Point(rm_o, ti - tm / 2, ms=ks, mode='polar'),
@@ -67,9 +67,9 @@ magnet_surfaces = [
 ]
 
 disk_surface = lm.BooleanSurface(
-    [disk_bound_surface], 
-    magnet_surfaces, 
-    operation='subtract', 
+    [disk_bound_surface],
+    magnet_surfaces,
+    operation='subtract',
     removeTool=False,
     physical_group=(1, 'Disk Surface')
 )
@@ -127,7 +127,7 @@ m.assemble(coordinate_system='polar')
 
 
 # TODO: maybe we no longer need the `edge_indices` from `lsdo_mesh` as we now use KDTree
-# to extract the node indices from FEniCS; and we should only need either `new_edge_coords` 
+# to extract the node indices from FEniCS; and we should only need either `new_edge_coords`
 # or `edge_deltas`, given that we already have `old_edge_coords`.
 def getInitialEdgeCoords():
     old_edge_coords = m.get_ffd_edge_old_coords(output_type='cartesian')
@@ -147,7 +147,7 @@ def generateMeshMovement(angle):
     for i in range(8):
         delta[2 * i, 0] = angle
         delta[2 * i + 1, 0] = -angle
-    edge_deltas= m.test_ffd_edge_parametrization_polar(delta,   
+    edge_deltas= m.test_ffd_edge_parametrization_polar(delta,
                                                 output_type='cartesian')
     # print(edge_deltas)
     # exit()
