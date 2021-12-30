@@ -8,26 +8,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from petsc4py import PETSc
 from msh2xdmf import import_mesh
-# from run import mesh_object
 from piecewise_permeability import *
 from scipy.spatial import KDTree
 from scipy.sparse import csr_matrix
 
-# def getInitialEdgeCoords():
-#     old_edge_coords = mesh_object.get_ffd_edge_old_coords(output_type='cartesian')
-#     # Ru: trim out the origin (x=0,y=0) where there's no nearby (dist<1e-10) nodes in the mesh
-#     return old_edge_coords[:-2]
-#
-# def generateMeshMovement(angle):
-#     delta = np.zeros((4 * vars(mesh_object)['num_ffd_faces'], 2))
-#     for i in range(8):
-#         delta[2 * i, 0] = angle
-#         delta[2 * i + 1, 0] = -angle
-#     edge_deltas= m.test_ffd_edge_parametrization_polar(delta,
-#                                                 output_type='cartesian')
-#     # print(edge_deltas)
-#     # exit()
-#     return edge_deltas[:-2]
 
 #set_log_level(1)
 def m2p(A):
@@ -405,15 +389,14 @@ class MotorProblem(object):
         return M
 
 ######################## TODO #########################################
-    def getSubdomainArea(self, func_unit, subdomain):
-        area = assemble(inner(func_unit, func_unit)*self.dx((subdomain)))
+    def getSubdomainArea(self, subdomain):
+        area = assemble(Constant(1.0)*self.dx(subdomain))
         return area
 
     def getFuncAverageSubdomain(self, func, subdomain):
         func_unit = interpolate(Constant(1.0), func.function_space())
-        integral = assemble(inner(func, func_unit)*self.dx((subdomain)))
-        area = self.getSubdomainArea(func_unit, subdomain)
-        # area = assemble(inner(func_unit, func_unit)*self.dx(subdomain))
+        integral = assemble(inner(func, func_unit)*self.dx(subdomain))
+        area = self.getSubdomainArea(subdomain)
         avg_func = integral/area
         return avg_func
 
@@ -436,7 +419,6 @@ class MotorProblem(object):
     def fluxLinkage(self):
         pass
 
-######################## TODO #########################################
     def setBCMagnetostatic(self):
         """
         Set zero BC on the outer boundary of the domain
@@ -554,7 +536,6 @@ class MotorProblem(object):
         ABS_TOL_M = 1e-4
         MAX_ITERS_M = 100
 
-#        update(self.A_z, 0.1*np.ones(self.total_dofs_A_z))
         problem_ms = NonlinearVariationalProblem(res_ms, self.A_z,
                                                 bc_ms, Dres_ms)
         solver_ms = NonlinearVariationalSolver(problem_ms)
@@ -567,30 +548,21 @@ class MotorProblem(object):
         solver_ms.solve()
         self.B = project(as_vector((self.A_z.dx(1),-self.A_z.dx(0))),
                         VectorFunctionSpace(self.mesh,'DG',0))
+        
+        subdomain_range = range(41,112+1)
 
-        area_func_unit = interpolate(Constant(1.0), self.A_z.function_space())
-
-        subdomain_range = np.arange(41,112+1)
-
-        #### For debugging purposes ###
-        # for i in subdomain_range:
-        #     print(i, self.getSubdomainArea(area_func_unit, i))
-        ###############################
-
-        # self.winding_delta_A_z = np.array(
-        #     self.extractSubdomainAverageA_z(
-        #         func=self.A_z,
-        #         subdomain_range=subdomain_range
-        # )[1])
+        self.winding_delta_A_z = np.array(
+         self.extractSubdomainAverageA_z(
+             func=self.A_z,
+             subdomain_range=subdomain_range
+        )[1])
 
 
         self.winding_area = self.getSubdomainArea(
-            func_unit=area_func_unit,
             subdomain=42
         )
 
         self.magnet_area = self.getSubdomainArea(
-            func_unit=area_func_unit,
             subdomain=29
         )
 
@@ -598,7 +570,6 @@ class MotorProblem(object):
         self.steel_area = 0
         for subdomain in steel_subdomains:
             self.steel_area += self.getSubdomainArea(
-                func_unit=area_func_unit,
                 subdomain=subdomain
             )
         # NOTES FOR RU:
@@ -687,21 +658,23 @@ if __name__ == "__main__":
     print("winding area:", problem.winding_area)
     print("magnet area:", problem.magnet_area)
     print("steel area:", problem.steel_area)
+    
     ###### Test the average calculation for the flux linkage
-    subdomain_range = np.arange(41,112)
-    # asdf, deltas  = problem.extractSubdomainAverageA_z(
-    #     func=problem.A_z,
-    #     subdomain_range=subdomain_range
-    # )
-    # for i in range(len(subdomain_range)):
-    #     print("Average A_z for subdomain "+str(i+41))
-    #     # print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+1))
-    #     print(asdf[i])
-    #
-    # for i in range(len(deltas)):
-    #     print("Delta A_z for Stator Tooth "+str(i+1))
-    #     # print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+1))
-    #     print(deltas[i])
+    subdomain_range = range(41,112)
+    asdf, deltas  = problem.extractSubdomainAverageA_z(
+        func=problem.A_z,
+        subdomain_range=subdomain_range
+    )
+    
+    for i in range(len(subdomain_range)):
+        print("Average A_z for subdomain "+str(i+41))
+#        print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+1))
+        print(asdf[i])
+
+    for i in range(len(deltas)):
+        print("Delta A_z for Stator Tooth "+str(i+1))
+        # print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+1))
+        print(deltas[i])
 
     plt.figure(1)
     plot(problem.A_z)
