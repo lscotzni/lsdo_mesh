@@ -41,7 +41,6 @@ def computeMatVecProductFwd(A, x):
     A_p = m2p(A)
     y = A_p * v2p(x.vector())
     y.assemble()
-#    y.ghostUpdate()
     return y.getArray()
 
 def computeMatVecProductBwd(A, R):
@@ -56,7 +55,6 @@ def computeMatVecProductBwd(A, R):
     y.setUp()
     m2p(A).multTranspose(v2p(R.vector()),y)
     y.assemble()
-#    y.ghostUpdate()
     return y.getArray()
 
 
@@ -180,7 +178,6 @@ def RelativePermeability(subdomain, u, uhat):
         mu = 1.00
 
     return mu
-
 # END NEW PERMEABILITY
 
 def JS(v,uhat,p,s,Hc,i_abc):
@@ -209,8 +206,6 @@ def JS(v,uhat,p,s,Hc,i_abc):
     stator_winding_index_end    = stator_winding_index_start + num_windings
     Jw = 0.
     N = 13
-    # JA, JB, JC = 94.26 * N, 47.13 * N, -47.13 * N
-    # JA, JB, JC = 66.65 * N, -91.04 * N, 24.4 * N
     JA, JB, JC = i_abc[0] * N + DOLFIN_EPS, i_abc[1] * N + DOLFIN_EPS, i_abc[2] * N + DOLFIN_EPS
     for i in range(int((num_windings) / (num_phases * coil_per_phase))):
         coil_start_ind = i * num_phases * coil_per_phase
@@ -232,7 +227,6 @@ def JS(v,uhat,p,s,Hc,i_abc):
             ]
             Jw += sum(J_list)
             # order: + - - + + - (signs switch with each instance of the phases)
-
 
     return Jm + Jw
 
@@ -304,7 +298,6 @@ class MotorProblem(object):
 
         # Partial derivatives in the mesh motion subproblem
         self.dRm_duhat = derivative(self.resM(), self.uhat)
-        # self.dRm_dedge = self.getBCDerivatives()
 
 
     def initMesh(self):
@@ -388,20 +381,29 @@ class MotorProblem(object):
                         shape=(self.total_dofs_uhat, self.total_dofs_bc))
         return M
 
-######################## TODO #########################################
     def getSubdomainArea(self, subdomain):
+        """
+        Compute the subdomain area based on its flag
+        """
         area = assemble(Constant(1.0)*self.dx(subdomain))
         return area
 
     def getFuncAverageSubdomain(self, func, subdomain):
+        """
+        Compute the average function value over a subdomain
+        """
         func_unit = interpolate(Constant(1.0), func.function_space())
         integral = assemble(inner(func, func_unit)*self.dx(subdomain))
         area = self.getSubdomainArea(subdomain)
         avg_func = integral/area
         return avg_func
 
-     # TODO: add the formula of flux linkage using 'getFuncAverageSubdomain' for each winding
     def extractSubdomainAverageA_z(self, func, subdomain_range):
+        """
+        Get averaged function values over a range of subdomains and 
+        the differences between the average values of two neighboring
+        subdomains
+        """
         subdomain_avg_A_z = []
         subdomain_avg_A_z_deltas = []
         # winding_start, winding_end = 41, 112
@@ -446,7 +448,9 @@ class MotorProblem(object):
         uhat_back = Function(self.VHAT)
         uhat_back.assign(-self.uhat)
         self.moveMesh(uhat_back)
-        min_STEPS = 2*round(max_disp/min_cell_size)
+        print("max_disp: ", max_disp)
+        print("min_cell_size: ", min_cell_size)
+        min_STEPS = round(max_disp/min_cell_size)
         if min_STEPS >= STEPS:
             STEPS = min_STEPS
         increment_deltas = edge_deltas/STEPS
@@ -468,8 +472,6 @@ class MotorProblem(object):
         res_m = self.resM()
         Dres_m = derivative(res_m, self.uhat)
 
-        ####### Nonlinear solver setup #######
-
         # Nonlinear solver parameters
         REL_TOL_M = 1e-4
         MAX_ITERS_M = 10
@@ -484,10 +486,6 @@ class MotorProblem(object):
         self.solver_m.parameters['snes_solver']['maximum_iterations'] = MAX_ITERS_M
         self.solver_m.parameters['snes_solver']['linear_solver']='mumps'
         self.solver_m.parameters['snes_solver']['error_on_nonconvergence'] = False
-        # self.solver_m.parameters['newton_solver']\
-        #                    ['maximum_iterations'] = MAX_ITERS_M
-        # self.solver_m.parameters['newton_solver']\
-        #                    ['relative_tolerance'] = REL_TOL_M
 
     def solveMeshMotion(self):
 
@@ -505,10 +503,8 @@ class MotorProblem(object):
             print(80*"=")
             print("  FEA: Step "+str(i+1)+" of mesh movement")
             print(80*"=")
-#            print(self.uhat.vector().get_local()[problem.edge_indices[:5]])
             self.uhat_old.assign(self.uhat)
-            print(self.edge_deltas[368:375])
-            print(self.uhat.vector().get_local()[self.edge_indices[368:375]])
+
             for i in range(self.total_dofs_bc):
                 self.uhat_old.vector()[self.edge_indices[i]] += self.increment_deltas[i]
             self.solver_m.solve()
@@ -531,9 +527,9 @@ class MotorProblem(object):
         A_z_ = TrialFunction(self.V)
         Dres_ms = derivative(res_ms, self.A_z, A_z_)
 
-
         # Nonlinear solver parameters
-        ABS_TOL_M = 1e-4
+        ABS_TOL_M = 1e-6
+        REL_TOL_M = 1e-6
         MAX_ITERS_M = 100
 
         problem_ms = NonlinearVariationalProblem(res_ms, self.A_z,
@@ -542,6 +538,7 @@ class MotorProblem(object):
         solver_ms.parameters['nonlinear_solver']='snes'
         solver_ms.parameters['snes_solver']['line_search'] = 'bt'
         solver_ms.parameters['snes_solver']['absolute_tolerance'] = ABS_TOL_M
+        solver_ms.parameters['snes_solver']['relative_tolerance'] = REL_TOL_M
         solver_ms.parameters['snes_solver']['maximum_iterations'] = MAX_ITERS_M
         solver_ms.parameters['snes_solver']['linear_solver']='mumps'
         solver_ms.parameters['snes_solver']['error_on_nonconvergence'] = False
@@ -641,59 +638,66 @@ if __name__ == "__main__":
     f.close()
 
     print("number of nonzero displacements:", np.count_nonzero(edge_deltas))
+    
     # One-time computation for the initial edge coordinates from
     # the code that creates the mesh file
     # old_edge_coords = getInitialEdgeCoords()
-    problem = MotorProblem(i_abc=i_abc, old_edge_coords=old_edge_coords)
+    
+    problem = MotorProblem(mesh_file="motor_mesh_1", i_abc=i_abc, 
+                            old_edge_coords=old_edge_coords)
 
     problem.edge_deltas = edge_deltas
-    # problem.solveMeshMotion()
-    problem.solveMagnetostatic()
-
-    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
-    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
-    vtkfile_A_z << problem.A_z
-    vtkfile_B << problem.B
-
-    print("winding area:", problem.winding_area)
-    print("magnet area:", problem.magnet_area)
-    print("steel area:", problem.steel_area)
-    
-    ###### Test the average calculation for the flux linkage
-    subdomain_range = range(41,112)
-    asdf, deltas  = problem.extractSubdomainAverageA_z(
-        func=problem.A_z,
-        subdomain_range=subdomain_range
-    )
-    
-    for i in range(len(subdomain_range)):
-        print("Average A_z for subdomain "+str(i+41))
-#        print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+1))
-        print(asdf[i])
-
-    for i in range(len(deltas)):
-        print("Delta A_z for Stator Tooth "+str(i+1))
-        # print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+1))
-        print(deltas[i])
-    print('------')
-
-    for i, ind in enumerate(subdomain_range):
-        func=problem.A_z
-        func_unit = interpolate(Constant(1.0), func.function_space())
-        print("Area of Stator Winding "+str(ind))
-        print(problem.getSubdomainArea(func_unit=func_unit, subdomain=ind))
-
-    # for i, ind in enumerate(subdomain_range):
-    #     func=problem.A_z
-    #     func_unit = interpolate(Constant(1.0), func.function_space())
-    #     print("Area of Stator Winding"+str(ind))
-    #     print(problem.getSubdomainArea(func_unit=func_unit, subdomain=i+1))
-    
+    problem.solveMeshMotion()
     plt.figure(1)
-    asdf = plot(problem.A_z)
-    plt.colorbar(asdf)
-    # plot(problem.B, linewidth=40)
-#    ALE.move(problem.mesh, problem.uhat)
-    # plot(problem.mesh)
-#    print(problem.A_z.vector().get_local()[:10])
+    problem.moveMesh(problem.uhat)
+    plot(problem.mesh)
     plt.show()
+#    problem.solveMagnetostatic()
+
+#    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
+#    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
+#    vtkfile_A_z << problem.A_z
+#    vtkfile_B << problem.B
+
+#    print("winding area:", problem.winding_area)
+#    print("magnet area:", problem.magnet_area)
+#    print("steel area:", problem.steel_area)
+#    
+#    ###### Test the average calculation for the flux linkage
+#    subdomain_range = range(41,112)
+#    asdf, deltas  = problem.extractSubdomainAverageA_z(
+#        func=problem.A_z,
+#        subdomain_range=subdomain_range
+#    )
+#    
+#    for i in range(len(subdomain_range)):
+#        print("Average A_z for subdomain "+str(i+41))
+##        print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+1))
+#        print(asdf[i])
+
+#    for i in range(len(deltas)):
+#        print("Delta A_z for Stator Tooth "+str(i+1))
+#        # print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+1))
+#        print(deltas[i])
+#    print('------')
+
+##    for i, ind in enumerate(subdomain_range):
+##        func=problem.A_z
+##        func_unit = interpolate(Constant(1.0), func.function_space())
+##        print("Area of Stator Winding "+str(ind))
+##        print(problem.getSubdomainArea(subdomain=ind))
+
+#    # for i, ind in enumerate(subdomain_range):
+#    #     func=problem.A_z
+#    #     func_unit = interpolate(Constant(1.0), func.function_space())
+#    #     print("Area of Stator Winding"+str(ind))
+#    #     print(problem.getSubdomainArea(subdomain=i+1))
+#    
+#    plt.figure(1)
+#    asdf = plot(problem.A_z)
+#    plt.colorbar(asdf)
+#    # plot(problem.B, linewidth=40)
+##    ALE.move(problem.mesh, problem.uhat)
+#    # plot(problem.mesh)
+##    print(problem.A_z.vector().get_local()[:10])
+#    plt.show()

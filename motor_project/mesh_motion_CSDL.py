@@ -9,9 +9,6 @@ from motor_fea import *
 class M(Model):
 
     def initialize(self):
-#        print("="*40)
-#        print("CSDL: Running initialize()...")
-#        print("="*40)
         self.parameters.declare('fea')
 
     def define(self):
@@ -34,15 +31,9 @@ class MeshMotion(CustomImplicitOperation):
     output: uhat
     """
     def initialize(self):
-#        print("="*40)
-#        print("CSDL: Running initialize()...")
-#        print("="*40)
         self.parameters.declare('fea')
 
     def define(self):
-#        print("="*40)
-#        print("CSDL: Running define()...")
-#        print("="*40)
         self.fea = self.parameters['fea']
         self.input_size = len(self.fea.edge_indices)
         self.output_size = self.fea.total_dofs_uhat
@@ -52,7 +43,7 @@ class MeshMotion(CustomImplicitOperation):
                         )
         self.add_output('uhat',
                         shape=(self.output_size,),
-                        val=0.1*np.ones(self.output_size).reshape(self.output_size,)
+                        val=0.0
                         )
         self.declare_derivatives('uhat', 'uhat')
         self.declare_derivatives('uhat', 'edge_deltas')
@@ -64,9 +55,6 @@ class MeshMotion(CustomImplicitOperation):
         self.bcs = self.fea.setBCMeshMotion()
 
     def evaluate_residuals(self, inputs, outputs, residuals):
-#        print("="*40)
-#        print("CSDL: Running evaluate_residuals()...")
-#        print("="*40)
         self.updateMeshMotionBC(inputs)
         update(self.fea.uhat, outputs['uhat'])
         resM = assemble(self.fea.resM())
@@ -77,9 +65,6 @@ class MeshMotion(CustomImplicitOperation):
         residuals['uhat'] = resM.get_local()
 
     def solve_residual_equations(self, inputs, outputs):
-#        print("="*40)
-#        print("CSDL: Running solve_residual_equations()...")
-#        print("="*40)
         self.updateMeshMotionBC(inputs)
         update(self.fea.uhat, outputs['uhat'])
 
@@ -90,9 +75,6 @@ class MeshMotion(CustomImplicitOperation):
 
 
     def compute_derivatives(self, inputs, outputs, derivatives):
-#        print("="*40)
-#        print("CSDL: Running compute_derivatives()...")
-#        print("="*40)
         self.updateMeshMotionBC(inputs)
         update(self.fea.uhat, outputs['uhat'])
 
@@ -104,9 +86,6 @@ class MeshMotion(CustomImplicitOperation):
 
     def compute_jacvec_product(self, inputs, outputs,
                                 d_inputs, d_outputs, d_residuals, mode):
-#        print("="*40)
-#        print("CSDL: Running compute_jacvec_product()...")
-#        print("="*40)
         if mode == 'fwd':
             if 'uhat' in d_residuals:
                 if 'uhat' in d_outputs:
@@ -126,11 +105,8 @@ class MeshMotion(CustomImplicitOperation):
                     d_inputs['edge_deltas'] += self.dRdf.transpose().dot(
                                             d_residuals['uhat'])
 
-    def apply_inverse_jacobian(self, d_outputs, d_residuals, mode):
-#        print("="*40)
-#        print("CSDL: Running apply_inverse_jacobian()...")
-#        print("="*40)
 
+    def apply_inverse_jacobian(self, d_outputs, d_residuals, mode):
         if mode == 'fwd':
             d_outputs['uhat'] = self.fea.solveLinearFwd(
                                                 self.A,
@@ -155,10 +131,9 @@ if __name__ == "__main__":
     f = open('edge_coord_deltas.txt', 'r+')
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
-    # One-time computation for the initial edge coordinates from
-    # the code that creates the mesh file
-    # old_edge_coords = getInitialEdgeCoords()
-    fea = MotorProblem(i_abc=i_abc, old_edge_coords=old_edge_coords)
+    
+    fea = MotorProblem(mesh_file="motor_mesh_1", i_abc=i_abc, 
+                        old_edge_coords=old_edge_coords)
     sim = Simulator(M(fea=fea))
     sim['edge_deltas'] = edge_deltas
     sim.run()
@@ -166,6 +141,9 @@ if __name__ == "__main__":
     fea.moveMesh(fea.uhat)
     plot(fea.mesh)
     plt.show()
+    
+#Ru: check_partials may take a long running time; 
+#tested to be correct
 
 #    print("CSDL: Running check_partials()...")
 #    sim.check_partials()
