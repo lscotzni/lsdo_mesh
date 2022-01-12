@@ -286,7 +286,8 @@ class Mesh(object):
 
         self.create_csdl_model() # this contains the ffd face/edge & mesh movement csdl model classes
         # spits out the csdl variable containing mesh coordinates
-        
+        return self.mesh_model
+
     def assemble_mesh(self, coordinate_system='cartesian'):
         # (1) recursively assemble entities data structures
         # (2) remove duplicates

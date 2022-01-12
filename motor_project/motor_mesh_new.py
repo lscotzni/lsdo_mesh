@@ -17,6 +17,7 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     s       = 3 * p # stator slots per 360 degrees
     m       = 3 # number of phases for stator winding current
 
+    # TARGET MESH SIZES (DIFFER FOR POINTS)
     ks      = 1e-3 # target mesh size
 
     # --- COLORS (r, g, b) ---

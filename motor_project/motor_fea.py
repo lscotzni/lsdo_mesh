@@ -205,8 +205,10 @@ def JS(v,uhat,p,s,Hc,i_abc):
     stator_winding_index_start  = 4 + 3 * p + 1
     stator_winding_index_end    = stator_winding_index_start + num_windings
     Jw = 0.
-    N = 13
+    N = 39
     JA, JB, JC = i_abc[0] * N + DOLFIN_EPS, i_abc[1] * N + DOLFIN_EPS, i_abc[2] * N + DOLFIN_EPS
+
+    # OLD METHOD
     for i in range(int((num_windings) / (num_phases * coil_per_phase))):
         coil_start_ind = i * num_phases * coil_per_phase
         for j in range(3):
@@ -643,21 +645,20 @@ if __name__ == "__main__":
     # the code that creates the mesh file
     # old_edge_coords = getInitialEdgeCoords()
     
-    problem = MotorProblem(mesh_file="motor_mesh_1", i_abc=i_abc, 
+    problem = MotorProblem(mesh_file="motor_mesh_2", i_abc=i_abc, 
                             old_edge_coords=old_edge_coords)
 
-    problem.edge_deltas = edge_deltas
-    problem.solveMeshMotion()
-    plt.figure(1)
-    problem.moveMesh(problem.uhat)
-    plot(problem.mesh)
-    plt.show()
-#    problem.solveMagnetostatic()
-
-#    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
-#    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
-#    vtkfile_A_z << problem.A_z
-#    vtkfile_B << problem.B
+    # problem.edge_deltas = edge_deltas
+    # problem.solveMeshMotion()
+    # plt.figure(1)
+    # problem.moveMesh(problem.uhat)
+    # plot(problem.mesh)
+    # plt.show()
+    problem.solveMagnetostatic()
+    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
+    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
+    vtkfile_A_z << problem.A_z
+    vtkfile_B << problem.B
 
 #    print("winding area:", problem.winding_area)
 #    print("magnet area:", problem.magnet_area)
@@ -693,11 +694,11 @@ if __name__ == "__main__":
 #    #     print("Area of Stator Winding"+str(ind))
 #    #     print(problem.getSubdomainArea(subdomain=i+1))
 #    
-#    plt.figure(1)
-#    asdf = plot(problem.A_z)
-#    plt.colorbar(asdf)
-#    # plot(problem.B, linewidth=40)
-##    ALE.move(problem.mesh, problem.uhat)
-#    # plot(problem.mesh)
-##    print(problem.A_z.vector().get_local()[:10])
-#    plt.show()
+    plt.figure(1)
+    asdf = plot(problem.A_z)
+    plt.colorbar(asdf)
+    # plot(problem.B, linewidth=40)
+    # ALE.move(problem.mesh, problem.uhat)
+    # plot(problem.mesh)
+    # print(problem.A_z.vector().get_local()[:10])
+    plt.show()
