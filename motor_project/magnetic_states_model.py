@@ -7,7 +7,7 @@ import numpy as np
 from csdl_om import Simulator
 from motor_fea import *
 
-class M(Model):
+class MagneticStatesModel(Model):
 
     def initialize(self):
         print("="*40)
@@ -142,18 +142,20 @@ if __name__ == "__main__":
         -iq * np.sin(-2*np.pi/3),
         -iq * np.sin(2*np.pi/3),
     ]
-    f = open('init_edge_coords.txt', 'r+')
+    f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-    f = open('edge_coord_deltas.txt', 'r+')
+    f = open('edge_deformation_data/edge_coord_deltas.txt', 'r+')
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
+
     
-    fea = MotorProblem(mesh_file="motor_mesh_1", i_abc=i_abc, 
-                        old_edge_coords=old_edge_coords)
+    fea = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
+                            old_edge_coords=old_edge_coords)
+    fea.edge_deltas = edge_deltas
     # fea.solveMeshMotion()
-    sim = Simulator(M(fea=fea))
+    sim = Simulator(MagneticStatesModel(fea=fea))
     from matplotlib import pyplot as plt
     print("CSDL: Running the model...")
     sim.run()
