@@ -631,11 +631,11 @@ if __name__ == "__main__":
         -iq * np.sin(-2*np.pi/3),
         -iq * np.sin(2*np.pi/3),
     ]
-    f = open('init_edge_coords.txt', 'r+')
+    f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-    f = open('edge_coord_deltas.txt', 'r+')
+    f = open('edge_deformation_data/edge_coord_deltas.txt', 'r+')
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
@@ -645,7 +645,7 @@ if __name__ == "__main__":
     # the code that creates the mesh file
     # old_edge_coords = getInitialEdgeCoords()
     
-    problem = MotorProblem(mesh_file="motor_mesh_2", i_abc=i_abc, 
+    problem = MotorProblem(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
                             old_edge_coords=old_edge_coords)
 
     # problem.edge_deltas = edge_deltas
