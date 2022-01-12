@@ -74,7 +74,16 @@ class Curve(Entity):
 
 class Surface(Entity):
 
-    def initialize(self, *args, input_type='curves', physical_group=False):
+    def initialize(self, *args, input_type='curves', physical_group=False, color=None):
+        if color is None:
+            color = False
+        elif all([color_ind >= 0 and color_ind < 256 for color_ind in color]):
+            pass
+        elif len(color) > 3 or not isinstance(color, list) or not isinstance(color, np.ndarray):
+            raise TypeError('Incorrect format or length of color array.')
+        
+        # add case of 1 or 2 entries that are automatically filled
+
         props = self.properties
         curve_loop_lengths = []
         if input_type == 'curves':
@@ -82,7 +91,6 @@ class Surface(Entity):
             args    = args[0]
             curve_loop_lengths.append(len(args))
             
-
         elif input_type == 'polygon':
             curves = []
             for ind in range(len(args[0])):
@@ -93,6 +101,7 @@ class Surface(Entity):
                 curves.append(curve)
             args = curves
             curve_loop_lengths.append(len(args))
+
         elif input_type == 'curve_loops': # IMPLIES AT LEAST 2 DISTINCT SETS OF CURVES
             props['type'] = 1
             
@@ -112,13 +121,24 @@ class Surface(Entity):
         self.physical_group = physical_group
         # the format for a physical group is (ind, name) or ind; 
         self.curve_loop_lengths = curve_loop_lengths
+        self.color          = color
+
 
     def assemble_self(self):
-        return self.mesh.add_surface(self.children, self.curve_loop_lengths, self.physical_group)
+        return self.mesh.add_surface(self.children, self.curve_loop_lengths, self.physical_group, self.color)
 
 class BooleanSurface(Entity):
     
-    def initialize(self, objects, tools, operation, removeObject=True, removeTool=True, geometry='surfaces', physical_group=False):
+    def initialize(self, objects, tools, operation, removeObject=True, removeTool=True, geometry='surfaces', physical_group=False, color=None):
+        if color is None:
+            color = False
+        elif all([color_ind >= 0 and color_ind < 256 for color_ind in color]):
+            pass
+        elif len(color) > 3 or not isinstance(color, list) or not isinstance(color, np.ndarray):
+            raise TypeError('Incorrect format or length of color array.')
+        
+        # add case of 1 or 2 entries that are automatically filled
+
         props           = self.properties
         self.children   = []
         self.children.extend(objects)
@@ -135,9 +155,10 @@ class BooleanSurface(Entity):
             raise KeyError('Boolean operations currently defined for only surfaces.')
 
         self.physical_group     = physical_group
+        self.color              = color
 
     def assemble_self(self):
-        return self.mesh.add_boolean(self.children, tuple(self.properties.values()), self.physical_group)
+        return self.mesh.add_boolean(self.children, tuple(self.properties.values()), self.physical_group, self.color)
 
 class Volume(Entity):
     def initialize(self,*args):

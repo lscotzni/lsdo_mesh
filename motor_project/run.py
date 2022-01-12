@@ -2,6 +2,7 @@ import numpy as np
 import csdl
 from csdl_om import Simulator
 
+# from motor_mesh_new import MotorMeshGenerator
 from motor_mesh import MotorMeshGenerator
 
 rotor_rotations     = np.array([
@@ -33,6 +34,7 @@ print(' ------------------------- CSDL MODEL VARIABLE CHECK --------------------
 sim = Simulator(csdl_mesh_model)
 # sim['shape_parameter_vec'] = np.ones((3,))
 sim.run()
+
 print(sim['new_mesh_points_1'] - sim['new_mesh_points_2'])
 print(sim['new_edge_nodes_1'] - sim['new_edge_nodes_2'])
 

@@ -8,16 +8,7 @@ import time
 def remove_duplicate_points(points=None, point_mesh_size=None, point_rotate_instance=None, curves=None, eps=1.e-8):
     dummy_mesh_size     = False
 
-    # print(type(points))
-    # print('points:', points)
-    # print(type(point_mesh_size))
-    # print('point_mesh_size:', point_mesh_size)
-    # print(type(point_rotate_instance))
-    # print('point_rotate_instance:', point_rotate_instance)
-    # print(type(curves))
-    # print('curves:', curves)
-    # exit()
-
+    # -- REMOVE --
     # This block is how to deal with code for FFD duplicates (since we don't have a mesh size)
     if point_mesh_size is None:
         point_mesh_size = np.zeros(len(points))
@@ -37,7 +28,6 @@ def remove_duplicate_points(points=None, point_mesh_size=None, point_rotate_inst
                 #     point_indices_to_connect.append((i,j))
 
     t2 = time.time()
-    print(point_indices_to_connect)
     print('duplicate indices length', len(point_indices_to_connect))
     print('point connection time:', t2 - t1)
 

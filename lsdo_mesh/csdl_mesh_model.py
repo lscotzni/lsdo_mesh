@@ -6,10 +6,9 @@ class MeshModel(Model):
     def initialize(self):
         self.parameters.declare('shape_parametrization')
         self.parameters.declare('ffd_parametrization')
-        self.parameters.declare('edge_parametrization_instances')
-        self.parameters.declare('mesh_points_instances')
-        self.parameters.declare('ffd_cp_instances')
-        self.parameters.declare('num_mesh_instances')
+        self.parameters.declare('edge_parametrization')
+        self.parameters.declare('mesh_points')
+        self.parameters.declare('ffd_cps')
         self.parameters.declare('num_points')
 
         # made initially but not sure if this is the correct method
@@ -47,22 +46,11 @@ class MeshModel(Model):
     def define(self):
         shape_parametrization               = self.parameters['shape_parametrization']
         ffd_parametrization                 = self.parameters['ffd_parametrization']
-        edge_parametrization_instances      = self.parameters['edge_parametrization_instances']
-        mesh_points_instances               = self.parameters['mesh_points_instances']
-        ffd_cp_instances                    = self.parameters['ffd_cp_instances']
-        num_mesh_instances                  = self.parameters['num_mesh_instances']
+        edge_parametrization                = self.parameters['edge_parametrization']
+        mesh_points                         = self.parameters['mesh_points']
+        ffd_cps                             = self.parameters['ffd_cps']
         num_points                          = self.parameters['num_points']
 
-        # print(mesh_points_instances)
-        # print(edge_parametrization_instances)
-        # print(len(mesh_points_instances))
-        # print(len(mesh_points_instances[0]))
-        # print(len(mesh_points_instances[1]))
-        # print(len(edge_parametrization_instances))
-        # print(edge_parametrization_instances[0].shape)
-        # print(edge_parametrization_instances[1].shape)
-        # exit()
-        
         # edge_sps_mat = self.create_input(
         #     name='edge_sps_mat',
         #     val=edge_parametrization,
@@ -105,41 +93,39 @@ class MeshModel(Model):
         #     # shape=delta_mesh_points.shape,
         # )
         
-        for i in range(mesh_instances):
-            
-            mesh_instance = self.declare_variable(
-                'mesh_instance_{}'.format(i+1),
-                val=mesh_points_instances[i],
-                shape=mesh_points_instances[i].shape
-            )
-        
-            new_mesh_points = mesh_instance + delta_mesh_points
-            print(type(new_mesh_points))
-            new_mesh_points = self.register_output(
-                'new_mesh_points_{}'.format(i+1),
-                var=new_mesh_points,
-                # shape=new_mesh_points.shape
-            )
-        
-            edge_param_sps_mat = edge_parametrization_instances[i]
-            # edge_param_sps_mat = self.declare_variable(
-            #     'edge_param_sps_mat_{}'.format(i+1),
-            #     val=edge_param_sps_mat,
-            #     shape=edge_param_sps_mat.shape
-            # )
-        
 
-            new_edge_nodes = csdl.matvec(
-                edge_param_sps_mat, new_mesh_points
-            )
+            
+        mesh_instance = self.declare_variable(
+            'mesh_points',
+            val=mesh_points_instances[i],
+            shape=mesh_points_instances[i].shape
+        )
     
-            self.register_output(
-                'new_edge_nodes_{}'.format(i+1),
-                new_edge_nodes,
-                # new_edge_nodes.shape
-            )
-                # print(new_edge_nodes.shape)
-            # exit()
+        new_mesh_points = mesh_instance + delta_mesh_points
+        new_mesh_points = self.register_output(
+            'new_mesh_points',
+            var=new_mesh_points,
+            # shape=new_mesh_points.shape
+        )
+    
+        edge_param_sps_mat = edge_parametrization_instances[i]
+        # edge_param_sps_mat = self.declare_variable(
+        #     'edge_param_sps_mat_{}'.format(i+1),
+        #     val=edge_param_sps_mat,
+        #     shape=edge_param_sps_mat.shape
+        # )
+    
+
+        new_edge_nodes = csdl.matvec(
+            edge_param_sps_mat, new_mesh_points
+        )
+
+        self.register_output(
+            'new_edge_nodes',
+            new_edge_nodes,
+            # new_edge_nodes.shape
+        )
+
         # ------------------------------------------------------------------------
         
         # STEPS:

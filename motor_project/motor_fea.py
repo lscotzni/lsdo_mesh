@@ -209,8 +209,6 @@ def JS(v,uhat,p,s,Hc,i_abc):
     stator_winding_index_end    = stator_winding_index_start + num_windings
     Jw = 0.
     N = 13
-    # JA, JB, JC = 94.26 * N, 47.13 * N, -47.13 * N
-    # JA, JB, JC = 66.65 * N, -91.04 * N, 24.4 * N
     JA, JB, JC = i_abc[0] * N + DOLFIN_EPS, i_abc[1] * N + DOLFIN_EPS, i_abc[2] * N + DOLFIN_EPS
     for i in range(int((num_windings) / (num_phases * coil_per_phase))):
         coil_start_ind = i * num_phases * coil_per_phase

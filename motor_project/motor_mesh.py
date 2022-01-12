@@ -19,6 +19,15 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
 
     ks      = 1e-2 # target mesh size
 
+    # --- COLORS (r, g, b) ---
+    white   = [255, 255, 255]
+    red     = [255, 0, 0]
+    blue    = [0, 0, 255]
+    black   = [0, 0, 0]
+    pink    = [255, 0, 255]
+    green   = [0, 255, 0]
+    yellow  = [255, 255, 0]
+
     ''' -------------------- Key Geometrical Parameters of Motor -------------------- '''
     # # Key Rotor Angles for Geometry
     theta_p     = 2*np.pi/p # Angular sweep of each Rotor Slice
@@ -208,11 +217,17 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
             lm.Curve(magnet_air_slot_4_p[i], magnet_air_slot_3_p[i]),
             lm.Curve(magnet_air_slot_3_p[i], magnet_air_slot_1_p[i], origin, curve_type='arc'),
         ]])
+        # left_air_slot_c.extend([[
+        #     lm.Curve(magnet_air_slot_5_p[i], magnet_air_slot_6_p[i]),
+        #     lm.Curve(magnet_air_slot_6_p[i], magnet_air_slot_8_p[i], origin, curve_type='arc'),
+        #     lm.Curve(magnet_air_slot_8_p[i], magnet_air_slot_7_p[i]),
+        #     lm.Curve(magnet_air_slot_7_p[i], magnet_air_slot_5_p[i], origin, curve_type='arc'),
+        # ]])
         left_air_slot_c.extend([[
-            lm.Curve(magnet_air_slot_5_p[i], magnet_air_slot_6_p[i]),
-            lm.Curve(magnet_air_slot_6_p[i], magnet_air_slot_8_p[i], origin, curve_type='arc'),
-            lm.Curve(magnet_air_slot_8_p[i], magnet_air_slot_7_p[i]),
-            lm.Curve(magnet_air_slot_7_p[i], magnet_air_slot_5_p[i], origin, curve_type='arc'),
+            lm.Curve(magnet_air_slot_5_p[i], magnet_air_slot_7_p[i], origin, curve_type='arc'),
+            lm.Curve(magnet_air_slot_7_p[i], magnet_air_slot_8_p[i]),
+            lm.Curve(magnet_air_slot_8_p[i], magnet_air_slot_6_p[i], origin, curve_type='arc'),
+            lm.Curve(magnet_air_slot_6_p[i], magnet_air_slot_5_p[i]),
         ]])
 
     magnet_c = []
@@ -382,16 +397,21 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     # Magnets and corresponding air slots
     magnet_s, left_air_slot_s, right_air_slot_s = [], [], []
     for i in range(p):
-        magnet_s.append(lm.Surface(magnet_c[4 * i:4 * i + 4], physical_group=(5 + 2*p + i, 'Magnet '+str(i+1))))
-        left_air_slot_s.append(lm.Surface(left_air_slot_c[4 * i:4 * i + 4], physical_group=(5 + 2*i, 'Right Air Slot '+str(i+1))))
-        right_air_slot_s.append(lm.Surface(right_air_slot_c[4 * i:4 * i + 4], physical_group=(5 + 2*i + 1, 'Left Air Slot '+str(i+1))))
+        if i%2 == 0:
+            magnet_color = red
+        else:
+            magnet_color = blue
+        magnet_s.append(lm.Surface(magnet_c[4 * i:4 * i + 4], physical_group=(5 + 2*p + i, 'Magnet '+str(i+1)), color=magnet_color))
+        left_air_slot_s.append(lm.Surface(left_air_slot_c[4 * i:4 * i + 4], physical_group=(5 + 2*i, 'Left Air Slot '+str(i+1)), color=white))
+        right_air_slot_s.append(lm.Surface(right_air_slot_c[4 * i:4 * i + 4], physical_group=(5 + 2*i + 1, 'Right Air Slot '+str(i+1)), color=white))
         # m.add_entity(magnet_s[i])
         # m.add_entity(left_air_slot_s[i])
         # m.add_entity(right_air_slot_s[i])
 
     rotor_inner_surface_s   = lm.Surface(
         rotor_inner_surface_c,
-        physical_group=(3, "Shaft")
+        physical_group=(3, "Shaft"), 
+        color=white
     )
     # m.add_entity(rotor_inner_surface_s)
 
@@ -416,24 +436,33 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     # m.add_entity(stator_core)
 
     air_gap = lm.BooleanSurface(
-        [air_gap_surface], [rotor_core_surface], removeTool=True, operation='subtract', physical_group=(4, 'Air Gap')
+        [air_gap_surface], [rotor_core_surface], removeTool=True, operation='subtract', physical_group=(4, 'Air Gap'), color=white
     )
     m.add_entity(air_gap)
 
     rotor_core = lm.BooleanSurface(
-        [rotor_core_surface], rotor_core_subtract, removeTool=False, operation='subtract', physical_group=(1, 'Rotor Core')
+        [rotor_core_surface], rotor_core_subtract, removeTool=False, operation='subtract', physical_group=(1, 'Rotor Core'), color=black
     )
     m.add_entity(rotor_core)
 
     right_winding_surfaces, left_winding_surfaces = [], []
     for i in range(s):
-        right_winding_surfaces.append(lm.Surface(stator_windings_right_c[5  * i: 5 * i + 5], physical_group=(5 + 3*p + 2*i, 'Right Winding '+str(i+1))))
-        left_winding_surfaces.append(lm.Surface(stator_windings_left_c[5  * i: 5 * i + 5], physical_group=(5 + 3*p + 2*i + 1, 'Left Winding '+str(i+1))))
+        if i%3 == 0: # PHASE C
+            winding_color = yellow
+            phase = 'C '
+        elif i%3 == 1: # PHASE A
+            winding_color = green
+            phase = 'A '
+        elif i%3 == 2: # PHASE B
+            winding_color = pink
+            phase = 'B '
+        right_winding_surfaces.append(lm.Surface(stator_windings_right_c[5 * i: 5 * i + 5], physical_group=(5 + 3*p + 2*i, 'Right Winding '+phase+str(i+1)), color=winding_color))
+        left_winding_surfaces.append(lm.Surface(stator_windings_left_c[5 * i: 5 * i + 5], physical_group=(5 + 3*p + 2*i + 1, 'Left Winding '+phase+str(i+1)), color=winding_color))
 
         m.add_entity(right_winding_surfaces[i])
         m.add_entity(left_winding_surfaces[i])
 
-    asdf  = lm.Surface([outer_stator_surface_c],[stator_core_boundary_c], input_type='curve_loops', physical_group=(2, 'Stator Core'))
+    asdf  = lm.Surface([outer_stator_surface_c],[stator_core_boundary_c], input_type='curve_loops', physical_group=(2, 'Stator Core'), color=black)
     m.add_entity(asdf)
 
     '''  
@@ -538,7 +567,7 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
         'r',
         'constant'
     )
-    m.add_face(pi_test)
+    # m.add_face(pi_test)
 
     # pi_test = lm.Face([magnet_air_slot_3_p[1]], input_type='polar')
     # pi_test.add_shape_parameter(
@@ -556,23 +585,46 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
         'constant',
     )
     # m.add_face(stator_ffd)
+    
+    Ru_test_def_ffd  = []
+    for i in range(p):
+        Ru_test_def_ffd.append(
+            lm.Face(
+                [magnet_air_slot_1_p[i],
+                    magnet_air_slot_2_p[i],
+                    magnet_air_slot_3_p[i],
+                    magnet_air_slot_4_p[i],
+                    magnet_air_slot_5_p[i],
+                    magnet_air_slot_6_p[i],
+                    magnet_air_slot_7_p[i],
+                    magnet_air_slot_8_p[i]],
+                input_type='polar',
+            )
+        )
 
-    Ru_test_def_ffd = lm.Face(
-        [magnet_air_slot_1_p[0],
-            magnet_air_slot_2_p[0],
-            magnet_air_slot_3_p[0],
-            magnet_air_slot_4_p[0],
-            magnet_air_slot_5_p[0],
-            magnet_air_slot_6_p[0],
-            magnet_air_slot_7_p[0],
-            magnet_air_slot_8_p[0]],
-        input_type='polar',
-    )
-    Ru_test_def_ffd.add_shape_parameter(
-        'Ru_test_def_ffd',
-        'r',
-        'constant',
-    )
+        Ru_test_def_ffd[i].add_shape_parameter(
+            'Ru_test_def_ffd_' + str(i+1),
+            'r',
+            'constant',
+        )
+        
+        m.add_face(Ru_test_def_ffd[i])
+    # Ru_test_def_ffd = lm.Face(
+    #     [magnet_air_slot_1_p[0],
+    #         magnet_air_slot_2_p[0],
+    #         magnet_air_slot_3_p[0],
+    #         magnet_air_slot_4_p[0],
+    #         magnet_air_slot_5_p[0],
+    #         magnet_air_slot_6_p[0],
+    #         magnet_air_slot_7_p[0],
+    #         magnet_air_slot_8_p[0]],
+    #     input_type='polar',
+    # )
+    # Ru_test_def_ffd.add_shape_parameter(
+    #     'Ru_test_def_ffd',
+    #     'r',
+    #     'constant',
+    # )
     # m.add_face(Ru_test_def_ffd)
 
     m.add_all_entities_to_physical_group('curves')
@@ -594,9 +646,9 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
         # delta[8:, 1] = 0
         # delta[8:, 0] = 0
         delta = np.zeros((4 * vars(m)['num_ffd_faces'], 2))
-        # delta = np.zeros((8, 2))
-        for i in range(4):
-            delta[i, 1] = -.02 # shifting first magnet + air gaps radially in by 0.02 m
+
+        for i in range(int(4 * vars(m)['num_ffd_faces'])):
+            delta[i, 1] = -.01 # shifting first magnet + air gaps radially in by 0.02 m
         edge_deltas= m.test_ffd_edge_parametrization_polar(delta,   
                                                     output_type='cartesian')
         # print(edge_deltas)
@@ -621,7 +673,8 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     #     f.write(edge_deltas[i] + '\n')
     # f2.close()
     np.savetxt(edge_coord_deltas, edge_deltas)
-
+    # print('Deformation data written to file.')
+    # exit()
     return m
 
 # os.system('python3 msh2xdmf.py -d 2 ' + file_name + '.msh')
@@ -652,3 +705,9 @@ ERRORS:
     sector to create the stator core
 '''
 
+if __name__ == '__main__':
+    mesh_object = MotorMeshGenerator(
+        rotation_angles=[0], 
+        file_name='motor_mesh',
+        poles=12,
+    )

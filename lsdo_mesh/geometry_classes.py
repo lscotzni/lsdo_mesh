@@ -40,6 +40,7 @@ class Mesh(object):
         self.surface_indices        = []
         self.surface_curve_loops    = []
         self.surface_type           = []
+        self.surface_colors_all     = []
 
         self.boolean_operations     = []
         self.boolean_entities       = []
@@ -48,6 +49,7 @@ class Mesh(object):
         self.boolean_remove_object  = []
         self.boolean_tool_object    = []
         self.boolean_parameters     = []
+        self.boolean_surface_colors_all = []
 
         self.point_physical_groups              = []
         self.curve_physical_groups              = []
@@ -102,7 +104,7 @@ class Mesh(object):
         
         return len(self.curve_type) - 1
 
-    def add_surface(self, children, curve_loop_lengths, physical_group=False):
+    def add_surface(self, children, curve_loop_lengths, physical_group=False, color=False):
         self.surfaces.extend([curve.id for curve in children])
         if self.surface_indices == []:
             self.surface_indices.append([0, len(children)])
@@ -119,10 +121,11 @@ class Mesh(object):
         self.surface_physical_groups.append(physical_group)
 
         self.surface_curve_loops.append(curve_loop_lengths)
+        self.surface_colors_all.append(color)
 
         return len(self.surface_indices) - 1
 
-    def add_boolean(self, children, properties, physical_group=False):
+    def add_boolean(self, children, properties, physical_group=False, color=False):
         self.boolean_operations.append(properties[2])
         self.boolean_entities.extend([entity.id for entity in children])
         if self.boolean_object_indices == []:
@@ -147,6 +150,7 @@ class Mesh(object):
             if physical_group is not False:
                 raise KeyError('Physical groups must be tuples denoted as (int, string).')
         self.boolean_surface_physical_groups.append(physical_group)
+        self.boolean_surface_colors_all.append(color)
 
         return len(self.boolean_operations) - 1
 
@@ -280,7 +284,7 @@ class Mesh(object):
         # long term, line above contains Ru's FEniCS mesh deformation/regeneration model
         # for short term, we will separate it
 
-        # self.create_csdl_model() # this contains the ffd face/edge & mesh movement csdl model classes
+        self.create_csdl_model() # this contains the ffd face/edge & mesh movement csdl model classes
         # spits out the csdl variable containing mesh coordinates
         
     def assemble_mesh(self, coordinate_system='cartesian'):
@@ -397,6 +401,8 @@ class Mesh(object):
             
             # CREATE SURFACES
             surface_physical_group_indices = []
+            surface_color_indices   = []
+            surface_colors          = []
             for i, surface in enumerate(self.surface_indices):
                 # for ... in <indicator for number of curve loops here>
                 curve_loop_lengths = self.surface_curve_loops[i]
@@ -404,7 +410,6 @@ class Mesh(object):
                 loop_counter = 0
                 for j, loop_size in enumerate(curve_loop_lengths):
                     num_curves_in_loop = loop_size
-                    # curve_input = list(self.surfaces[np.arange(surface[0],surface[1])]+1)
                     curve_input = list(self.surfaces[np.arange(surface[0] + loop_counter, surface[0] + loop_counter + loop_size)]+1)
                     curveloop = occ_kernel.addCurveLoop(curve_input)  # fix the  ccc via Geometry.OCCAutoFix = 0 later
                     gmsh_curve_loops.append(curveloop)
@@ -413,14 +418,21 @@ class Mesh(object):
                 surface_ind = occ_kernel.addPlaneSurface(gmsh_curve_loops,i+1)
 
                 if self.surface_physical_groups[i]:
-                    surface_physical_group_indices.append(i+1)
+                    # surface_physical_group_indices.append(i+1)
+                    surface_physical_group_indices.append(surface_ind)
+
+                if self.surface_colors_all[i]:
+                    surface_color_indices.append(surface_ind)
+                    surface_colors.append(self.surface_colors_all[i])
             
             if not surface_physical_group_indices:
                 surface_physical_group_indices.append(len(self.surface_indices))
             print('Created all surfaces.')
 
             # EXECUTE SURFACE BOOLEAN OPERATIONS
-            surface_bool_physical_group_indices = []
+            bool_surface_physical_group_indices = []
+            bool_surface_color_indices  = []
+            bool_surface_colors         = []
             for i, parameters in enumerate(self.boolean_parameters):
                 
                 if parameters[0] == 'subtract':
@@ -436,16 +448,20 @@ class Mesh(object):
                     raise KeyError('operation has not been integrated yet')
                 if self.boolean_surface_physical_groups is not []:
                     if self.boolean_surface_physical_groups[i]:
-                        # surface_bool_physical_group_indices.append(i + 1 + surface_physical_group_indices[-1])
-                        surface_bool_physical_group_indices.append(bool_surf[0][0][1])
+                        # bool_surface_physical_group_indices.append(i + 1 + surface_physical_group_indices[-1])
+                        bool_surface_physical_group_indices.append(bool_surf[0][0][1])
+                
+                if self.boolean_surface_colors_all[i]:
+                    bool_surface_color_indices.append(bool_surf[0][0][1])
+                    bool_surface_colors.append(self.boolean_surface_colors_all[i])
 
             print('Created all boolean surfaces.')
 
             occ_kernel.synchronize()
     
-            # NOTE: Physical groups MUST be added AFTER synchronize()
-            # ADD PHYSICAL GROUPS
+            # NOTE: Physical groups and color setting MUST be added AFTER synchronize()
 
+            # ADD PHYSICAL GROUPS
             curve_counter  = 0
             for i, group in enumerate(self.curve_physical_groups):
                 if self.curve_physical_groups[i]:
@@ -464,7 +480,7 @@ class Mesh(object):
             for i, group in enumerate(self.boolean_surface_physical_groups):
                 if self.boolean_surface_physical_groups[i]:
                     boolean_surface_counter += 1
-                    gmsh.model.addPhysicalGroup(2, [surface_bool_physical_group_indices[boolean_surface_counter-1]], group[0])
+                    gmsh.model.addPhysicalGroup(2, [bool_surface_physical_group_indices[boolean_surface_counter-1]], group[0])
                     gmsh.model.setPhysicalName(2, group[0], group[1])  
 
             # Code block for adding all entities of a dimension to a physical group
@@ -485,6 +501,25 @@ class Mesh(object):
 
             # should make physical groups all in 1 or 2 arrays, with one being the
             # index, the other being the dimension (can also add names)
+
+            # SET COLORS
+            # SURFACE COLORS
+            for i in range(len(surface_colors)):
+                gmsh.model.setColor(
+                    [(2,surface_color_indices[i])],
+                    surface_colors[i][0],
+                    surface_colors[i][1],
+                    surface_colors[i][2],
+                )
+
+            # BOOLEAN SURFACE COLORS
+            for i in range(len(bool_surface_colors)):
+                gmsh.model.setColor(
+                    [(2,bool_surface_color_indices[i])],
+                    bool_surface_colors[i][0],
+                    bool_surface_colors[i][1],
+                    bool_surface_colors[i][2],
+                )
 
             gmsh.model.mesh.generate(2)
             gmsh.write(self.name + '_{}.msh'.format(str(a+1)))
@@ -603,16 +638,12 @@ class Mesh(object):
         # sparse matrix produced here is of shape:
         # (num FFD faces * 8, num shape parameters)
 
-        print(sparse_val)
-        print(sparse_col)
-        print(sparse_row)
-
         self.shape_param_sps_mat = csc_matrix(
             (sparse_val, (sparse_row, sparse_col)),
             shape=((len(self.ffd_faces) * 8, max(sparse_col) + 1))
         )
-        print(self.shape_param_sps_mat.toarray())
-        print(self.shape_param_sps_mat.toarray().shape)
+        # print(self.shape_param_sps_mat.toarray())
+        # print(self.shape_param_sps_mat.toarray().shape)
         
     def assemble_ffd_parametrization_new(self, coordinate_system='cartesian'):
         
@@ -709,18 +740,18 @@ class Mesh(object):
         # exit()
         orig_points = self.ffd_face_sps_mat.dot(self.ffd_face_control_pts) # check for whether FFD faces return original points
         # asdf  = self.ffd_face_sps_mat.dot(self.ffd_cp_instances[1]) 
-        asdf  = self.ffd_face_sps_mat_list[1].dot(self.ffd_cp_instances[1]) 
-        # other ways to do the above dot product:
-        # asdf = np.dot(ffd_face_sps_mat, ffd_face_control_pts)
-        # asdf = ffd_face_sps_mat @ ffd_face_control_pts 
+        # asdf  = self.ffd_face_sps_mat_list[1].dot(self.ffd_cp_instances[1]) 
+        # # other ways to do the above dot product:
+        # # asdf = np.dot(ffd_face_sps_mat, ffd_face_control_pts)
+        # # asdf = ffd_face_sps_mat @ ffd_face_control_pts 
 
-        # print('FFD Parametrization check:')
-        print(orig_points)
-        print(asdf)
-        print(asdf - orig_points) # entries here should return rotation angle (in radians)
-        # print(np.where(orig_points))
-        print(np.where(asdf - orig_points))
-        exit()
+        # # print('FFD Parametrization check:')
+        # print(orig_points)
+        # print(asdf)
+        # print(asdf - orig_points) # entries here should return rotation angle (in radians)
+        # # print(np.where(orig_points))
+        # print(np.where(asdf - orig_points))
+        # exit()
     
     def assemble_ffd_parametrization(self, coordinate_system='cartesian'):
         
@@ -975,16 +1006,18 @@ class Mesh(object):
         # 
         # register_output: we will use this to register the final set of edge node coordinates
         # new_point_location = matvec(ffd_param, ffd_deltas) + original_points
-
-        self.mesh_model = MeshModel(
-            shape_parametrization = self.shape_param_sps_mat,
-            ffd_parametrization = self.ffd_face_sps_mat,
-            edge_parametrization_instances = self.edge_param_sps_mat_list,
-            mesh_points_instances = self.mesh_points_instances,
-            ffd_cp_instances = self.ffd_cp_instances,
-            num_mesh_instances = len(self.rotation_angles),
-            num_points = self.num_points
-        )
+        self.mesh_model = []
+        for i in range(len(self.rotation_angles)):
+            self.mesh_model.append(
+                MeshModel(
+                    shape_parametrization   = self.shape_param_sps_mat,
+                    ffd_parametrization     = self.ffd_face_sps_mat_list[i],
+                    edge_parametrization    = self.edge_param_sps_mat_list[i],
+                    mesh_points             = self.mesh_points_instances[i],
+                    ffd_cps                 = self.ffd_cp_instances[i],
+                    num_points              = self.num_points
+                )
+            )
 
         return self.mesh_model
    
