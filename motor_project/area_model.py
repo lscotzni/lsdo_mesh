@@ -15,7 +15,6 @@ class AreaModel(Model):
     def define(self):
         self.fea = self.parameters['fea']
         self.input_size = self.fea.total_dofs_uhat
-        self.output_size = self.fea.total_dofs_A_z
         uhat = self.declare_variable('uhat',
                         shape=(self.input_size,),
                         val=np.zeros(self.input_size).reshape(self.input_size,))

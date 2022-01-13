@@ -74,6 +74,8 @@ class MotorFEA(object):
         self.winding_id = [42,]
         self.magnet_id = [29,]
         self.steel_id = [1,2,3]
+        self.winding_range = range(41,112+1)
+
 
     def initFunctionSpace(self):
         """
@@ -147,7 +149,6 @@ class MotorFEA(object):
         """
         The UFL form for area calculation of a subdomain
         """
-#        return Constant(1.0)*self.dx(subdomain)
         return Constant(1.0)*J(self.uhat)*self.dx(subdomain)
     
     def funcIntegralForm(self, func, subdomain):
@@ -156,6 +157,19 @@ class MotorFEA(object):
         """   
         func_unit = interpolate(Constant(1.0), func.function_space())
         return inner(func, func_unit)*J(self.uhat)*self.dx(subdomain)
+        
+    def getSubdomainArea(self, subdomains):
+        """
+        Compute the subdomain area based on its flag
+        """
+        if type(subdomains) == int:
+            subdomain_group = [subdomains]
+        else:
+            subdomain_group = subdomains
+        area = 0
+        for subdomain_id in subdomain_group:
+            area += self.areaForm(subdomain=subdomain_id)
+        return area
         
     def getFuncAverageSubdomain(self, func, subdomain):
         """
@@ -194,18 +208,7 @@ class MotorFEA(object):
                 assemble(self.magnet_area), 
                 assemble(self.steel_area))
                
-    def getSubdomainArea(self, subdomains):
-        """
-        Compute the subdomain area based on its flag
-        """
-        if type(subdomains) == int:
-            subdomain_group = [subdomains]
-        else:
-            subdomain_group = subdomains
-        area = 0
-        for subdomain_id in subdomain_group:
-            area += self.areaForm(subdomain=subdomain_id)
-        return area
+
         
     def calcAreaDerivatives(self):
         dWAduhat = assemble(derivative(self.winding_area, self.uhat))
@@ -315,13 +318,14 @@ class MotorFEA(object):
                                          - self.edge_deltas))
             print(80*"=")
 
-    def solveMagnetostatic(self):
+    def solveMagnetostatic(self, report=False):
         """
         Solve the magnetostatic problem with the mesh movements `uhat`
         """
-        print(80*"=")
-        print(" FEA: Solving the magnetostatic problem on the deformed mesh")
-        print(80*"=")
+        if report == True:
+            print(80*"=")
+            print(" FEA: Solving the magnetostatic problem on the deformed mesh")
+            print(80*"=")
         bc_ms = self.setBCMagnetostatic()
         res_ms = self.resMS()
         A_z_ = TrialFunction(self.V)
@@ -342,20 +346,44 @@ class MotorFEA(object):
         solver_ms.parameters['snes_solver']['maximum_iterations'] = MAX_ITERS_M
         solver_ms.parameters['snes_solver']['linear_solver']='mumps'
         solver_ms.parameters['snes_solver']['error_on_nonconvergence'] = False
+        solver_ms.parameters['snes_solver']['report'] = report
         solver_ms.solve()
         self.B = project(as_vector((self.A_z.dx(1),-self.A_z.dx(0))),
                         VectorFunctionSpace(self.mesh,'DG',0))
-        
-        subdomain_range = range(41,112+1)
 
         self.winding_delta_A_z = np.array(
          self.extractSubdomainAverageA_z(
              func=self.A_z,
-             subdomain_range=subdomain_range
+             subdomain_range=self.winding_range
         )[1])
 
-
-
+    # TODO
+    def calcWindingAz(self):
+        winding_A_z = []
+        for subdomain in self.winding_range:
+            winding_A_z.append(
+                self.getFuncAverageSubdomain(self.A_z, subdomain)
+            )
+        return winding_A_z
+    
+    # TODO
+    def calcWindingAzDerivatives(self):
+        dAz = []
+        duhat = []
+        for subdomain in self.winding_range:
+            func_integral_form = self.funcIntegralForm(self.A_z, subdomain)
+            area_form = self.areaForm(subdomain)
+            func_integral_i = assemble(func_integral_form)
+            area_i = assemble(area_form)
+            dAz_i = 1/area_i*assemble(derivative(func_integral_form, self.A_z))
+            
+            # quotient rule for derivatives; Nu: numerator, De: denominator
+            dNudu = assemble(derivative(func_integral_form, self.uhat))
+            dDedu = assemble(derivative(area_form, self.uhat))
+            
+            duhat_i = (area_i*dNudu + func_integral_i*dDedu)/area_i**2
+            
+            
         # NOTES FOR RU:
         # NECESSARY OUTPUTS ARE:
         #   - self.winding_delta_A_z
@@ -424,7 +452,7 @@ if __name__ == "__main__":
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-    print("number of nonzero displacements:", np.count_nonzero(edge_deltas))
+#    print("Number of nonzero displacements:", np.count_nonzero(edge_deltas))
     
     # One-time computation for the initial edge coordinates from
     # the code that creates the mesh file
@@ -432,35 +460,21 @@ if __name__ == "__main__":
     
     problem = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
                             old_edge_coords=old_edge_coords)
-    winding_area, magnet_area, steel_area = problem.calcAreas()
-    dWA, dMA, dSA = problem.calcAreaDerivatives()
-    print(np.linalg.norm(problem.uhat.vector().get_local()))
-    print(winding_area, np.linalg.norm(dWA))
-    print(magnet_area, np.linalg.norm(dMA))
-    print(steel_area, np.linalg.norm(dSA))
     
     problem.edge_deltas = edge_deltas
-    problem.solveMeshMotion()
+    problem.solveMeshMotion(report=True)
 #    plt.figure(1)
 #    problem.moveMesh(problem.uhat)
 #    plot(problem.mesh)
 #    plt.show()
 
-    winding_area, magnet_area, steel_area = problem.calcAreas()
-    dWA, dMA, dSA = problem.calcAreaDerivatives()
-    print(winding_area, np.linalg.norm(dWA))
-    print(magnet_area, np.linalg.norm(dMA))
-    print(steel_area, np.linalg.norm(dSA))
-    
-#    problem.solveMagnetostatic()
+    problem.solveMagnetostatic(report=True)
+#    problem.calcWindingAzDerivatives()
 #    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
 #    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
 #    vtkfile_A_z << problem.A_z
 #    vtkfile_B << problem.B
 
-#    print("winding area:", problem.winding_area)
-#    print("magnet area:", problem.magnet_area)
-#    print("steel area:", problem.steel_area)
 #    
 #    ###### Test the average calculation for the flux linkage
 #    subdomain_range = range(41,112)
