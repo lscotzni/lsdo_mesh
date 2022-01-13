@@ -7,7 +7,7 @@ import numpy as np
 from csdl_om import Simulator
 from motor_fea import *
 
-class M(Model):
+class MagneticStatesModel(Model):
 
     def initialize(self):
         print("="*40)
@@ -26,7 +26,6 @@ class M(Model):
         e = MagneticStates(fea=self.fea)
         A_z = csdl.custom(uhat, op=e)
         self.register_output('A_z', A_z)
-        # self.create_output('winding_delta_A_z')
 
 class MagneticStates(CustomImplicitOperation):
     """
@@ -53,9 +52,6 @@ class MagneticStates(CustomImplicitOperation):
         self.add_output('A_z',
                         shape=(self.output_size,),
                         val=np.zeros(self.output_size).reshape(self.output_size,))
-        # self.add_output('winding_delta_A_z',
-        #                 shape=(36,),
-        #                 val=np.zeros((36,)))
         self.declare_derivatives('A_z', 'uhat')
         self.declare_derivatives('A_z', 'A_z')
         self.bcs = self.fea.setBCMagnetostatic()
@@ -76,13 +72,10 @@ class MagneticStates(CustomImplicitOperation):
         print("CSDL: Running solve_residual_equations()...")
         print("="*40)
         update(self.fea.uhat, inputs['uhat'])
-        # update(self.fea.A_z, outputs['A_z'])
 
         self.fea.solveMagnetostatic()
 
         outputs['A_z'] = self.fea.A_z.vector().get_local()
-        # outputs['winding_delta_A_z']  = np.array(self.fea.winding_delta_A_z)
-        # print(outputs['winding_delta_A_z'])
         update(self.fea.A_z, outputs['A_z'])
 
     def compute_derivatives(self, inputs, outputs, derivatives):
@@ -142,30 +135,32 @@ if __name__ == "__main__":
         -iq * np.sin(-2*np.pi/3),
         -iq * np.sin(2*np.pi/3),
     ]
-    f = open('init_edge_coords.txt', 'r+')
+    f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-    f = open('edge_coord_deltas.txt', 'r+')
+    f = open('edge_deformation_data/edge_coord_deltas.txt', 'r+')
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
+
     
-    fea = MotorProblem(mesh_file="motor_mesh_1", i_abc=i_abc, 
-                        old_edge_coords=old_edge_coords)
+    fea = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
+                            old_edge_coords=old_edge_coords)
+    fea.edge_deltas = edge_deltas
     # fea.solveMeshMotion()
-    sim = Simulator(M(fea=fea))
+    sim = Simulator(MagneticStatesModel(fea=fea))
     from matplotlib import pyplot as plt
     print("CSDL: Running the model...")
     sim.run()
- #    sim.visualize_implementation()
-    fea.A_z.vector().set_local(sim['A_z'])
-    plt.figure(1)
-    # fea.moveMesh(fea.uhat)
-    # plot(fea.A_z)
-    plot(fea.A_z)
-    # plot(fea.mesh, linewidth=0.1)
-    # plot(fea.subdomains_mf)
-    plt.show()
+# #    sim.visualize_implementation()
+#    fea.A_z.vector().set_local(sim['A_z'])
+#    plt.figure(1)
+#    # fea.moveMesh(fea.uhat)
+#    # plot(fea.A_z)
+#    plot(fea.A_z)
+#    # plot(fea.mesh, linewidth=0.1)
+#    # plot(fea.subdomains_mf)
+#    plt.show()
 
 #    print("CSDL: Checking the partial derivatives...")
 #    sim.check_partials()

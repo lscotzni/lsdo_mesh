@@ -2,281 +2,15 @@
 The FEniCS wrapper for the variational forms and the partial derivatives computation
 in the magnetostatic problem for the motor on a deformable mesh.
 """
-
-from dolfin import *
+from fea_utils import *
+from motor_problem import *
 import numpy as np
 import matplotlib.pyplot as plt
-from petsc4py import PETSc
 from msh2xdmf import import_mesh
-from piecewise_permeability import *
-from scipy.spatial import KDTree
 from scipy.sparse import csr_matrix
 
 
-#set_log_level(1)
-def m2p(A):
-    """
-    Convert the matrix of DOLFIN type to a PETSc.Mat object
-    """
-    return as_backend_type(A).mat()
-
-def v2p(v):
-    """
-    Convert the vector of DOLFIN type to a PETSc.Vec object
-    """
-    return as_backend_type(v).vec()
-
-def transpose(A):
-    """
-    Transpose for matrix of DOLFIN type
-    """
-    return PETScMatrix(as_backend_type(A).mat().transpose(PETSc.Mat(MPI.comm_world)))
-
-def computeMatVecProductFwd(A, x):
-    """
-    Compute y = A * x
-    A: ufl form matrix
-    x: ufl function
-    """
-    A_p = m2p(A)
-    y = A_p * v2p(x.vector())
-    y.assemble()
-    return y.getArray()
-
-def computeMatVecProductBwd(A, R):
-    """
-    Compute y = A.T * R
-    A: ufl form matrix
-    R: ufl function
-    """
-    row, col = m2p(A).getSizes()
-    y = PETSc.Vec().create()
-    y.setSizes(col)
-    y.setUp()
-    m2p(A).multTranspose(v2p(R.vector()),y)
-    y.assemble()
-    return y.getArray()
-
-
-def zero_petsc_vec(size, comm=MPI.comm_world):
-    """
-    Create zero PETSc vector of size ``num_el``.
-    Parameters
-    ----------
-    size : int
-    vec_type : str, optional
-        For petsc4py.PETSc.Vec types, see petsc4py.PETSc.Vec.Type.
-    comm : MPI communicator
-    Returns
-    -------
-    v : petsc4py.PETSc.Vec
-    """
-    v = PETSc.Vec().create(comm)
-    v.setSizes(size)
-    v.setUp()
-    v.assemble()
-    return v
-
-def zero_petsc_mat(row, col, comm=MPI.comm_world):
-    """
-    Create zeros PETSc matrix with shape (``row``, ``col``).
-    Parameters
-    ----------
-    row : int
-    col : int
-    mat_type : str, optional
-        For petsc4py.PETSc.Mat types, see petsc4py.PETSc.Mat.Type
-    comm : MPI communicator
-    Returns
-    -------
-    A : petsc4py.PETSc.Mat
-    """
-    A = PETSc.Mat(comm)
-    A.createAIJ([row, col], comm=comm)
-    A.setUp()
-    A.assemble()
-    return A
-
-def convertToDense(A_petsc):
-    """
-    Convert the PETSc matrix to a dense numpy array
-    (super unefficient, only used for debugging purposes)
-    """
-    A_petsc.assemble()
-    A_dense = A_petsc.convert("dense")
-    return A_dense.getDenseArray()
-
-def update(f, f_values):
-    """
-    Update the nodal values in every dof of the DOLFIN function `f`
-    according to `f_values`.
-    -------------------------
-    f: dolfin function
-    f_values: numpy array
-    """
-    f.vector().set_local(f_values)
-    v2p(f.vector()).assemble()
-    v2p(f.vector()).ghostUpdate()
-
-def findNodeIndices(node_coordinates, coordinates):
-    """
-    Find the indices of the closest nodes, given the `node_coordinates`
-    for a set of nodes and the `coordinates` for all of the vertices
-    in the mesh, by using scipy.spatial.KDTree
-    """
-    tree = KDTree(coordinates)
-    dist, node_indices = tree.query(node_coordinates)
-    return node_indices
-
-I = Identity(2)
-def gradx(f,uhat):
-    """
-    Convert the differential operation from the reference domain
-    to the measure in the deformed configuration based on the mesh
-    movement of `uhat`
-    --------------------------
-    f: DOLFIN function for the solution of the physical problem
-    uhat: DOLFIN function for mesh movements
-    """
-    return dot(grad(f), inv(I + grad(uhat)))
-
-def J(uhat):
-    """
-    Compute the determinant of the deformation gradient used in the
-    integration measure of the deformed configuration wrt the the
-    reference configuration.
-    ---------------------------
-    uhat: DOLFIN function for mesh movements
-    """
-    return det(I + grad(uhat))
-
-# START NEW PERMEABILITY
-def RelativePermeability(subdomain, u, uhat):
-    gradu = gradx(u,uhat)
-    # if subdomain == 1: # Electrical/Silicon/Laminated Steel
-    if subdomain == 1 or subdomain == 2: # Electrical/Silicon/Laminated Steel
-        B = as_vector((gradu[1], -gradu[0]))
-        norm_B = sqrt(dot(B, B) + DOLFIN_EPS)
-
-        mu = conditional(
-            lt(norm_B, 1.004),
-            linearPortion(norm_B),
-            conditional(
-                lt(norm_B, 1.433),
-                cubicPortion(norm_B),
-                (expA * exp(expB*norm_B + expC) + 1)
-            )
-        )
-        # mu = 4000. # constant case
-    elif subdomain == 3:
-        mu = 1.00 # insert value for titanium or shaft material
-    elif subdomain >= 4 and subdomain <= 28: # AIR
-        mu = 1.0
-    elif subdomain >= 29 and subdomain <= 40: # NEODYMIUM
-        mu = 1.05
-    elif subdomain >= 41: # COPPER
-        mu = 1.00
-
-    return mu
-# END NEW PERMEABILITY
-
-def JS(v,uhat,p,s,Hc,i_abc):
-    """
-    The variational form for the source term (current) of the
-    Maxwell equation
-    """
-    Jm = 0.
-    gradv = gradx(v,uhat)
-    base_magnet_dir = 2 * np.pi / p / 2
-    magnet_sweep    = 2 * np.pi / p
-    for i in range(p):
-        angle = base_magnet_dir + i * magnet_sweep
-        Hx = Constant((-1)**i * Hc * np.cos(angle))
-        Hy = Constant((-1)**i * Hc * np.sin(angle))
-
-        H = as_vector([Hx, Hy])
-
-        curl_v = as_vector([gradv[1],-gradv[0]])
-        Jm += inner(H,curl_v)*dx(i + 4 + p*2 + 1)
-
-    num_windings = 2*s
-    num_phases = 3
-    coil_per_phase = 6
-    stator_winding_index_start  = 4 + 3 * p + 1
-    stator_winding_index_end    = stator_winding_index_start + num_windings
-    Jw = 0.
-    N = 39
-    JA, JB, JC = i_abc[0] * N + DOLFIN_EPS, i_abc[1] * N + DOLFIN_EPS, i_abc[2] * N + DOLFIN_EPS
-
-    # OLD METHOD
-    # for i in range(int((num_windings) / (num_phases * coil_per_phase))):
-    #     coil_start_ind = i * num_phases * coil_per_phase
-    #     for j in range(3):
-    #         if j == 0:
-    #             J = JA
-    #         elif j == 1:
-    #             J = JB
-    #         elif j == 2:
-    #             J = JC
-    #         phase_start_ind = coil_per_phase * j
-    #         J_list = [
-    #             J * (-1)**i * v * dx(stator_winding_index_start + phase_start_ind + coil_start_ind),
-    #             J * (-1)**(i+1) * v * dx(stator_winding_index_start + 1 + phase_start_ind + coil_start_ind),
-    #             J * (-1)**(i+1) * v * dx(stator_winding_index_start + 2 + phase_start_ind + coil_start_ind),
-    #             J * (-1)**i * v * dx(stator_winding_index_start + 3 + phase_start_ind + coil_start_ind),
-    #             J * (-1)**i * v * dx(stator_winding_index_start + 4 + phase_start_ind + coil_start_ind),
-    #             J * (-1)**(i+1) * v * dx(stator_winding_index_start + 5 + phase_start_ind + coil_start_ind),
-    #         ]
-    #         Jw += sum(J_list)
-            # order: + - - + + - (signs switch with each instance of the phases)
-
-    # NEW METHOD
-    coil_per_phase = 2
-    for i in range(int((num_windings) / (num_phases * coil_per_phase))):
-        coil_start_ind = i * num_phases * coil_per_phase
-        for j in range(3):
-            if i%3 == 0: # PHASE A
-                J = JA
-            if i%3 == 1: # PHASE C
-                J = JC
-            if i%3 == 2: # PHASE B
-                J = JB
-        
-        J_list = [
-            JA * (-1)**i * v * dx(stator_winding_index_start + coil_start_ind),
-            JA * (-1)**(i+1) * v * dx(stator_winding_index_start + coil_start_ind + 1),
-            JC * (-1)**(i+1) * v * dx(stator_winding_index_start + coil_start_ind + 2),
-            JC * (-1)**i * v * dx(stator_winding_index_start + coil_start_ind + 3),
-            JB * (-1)**i * v * dx(stator_winding_index_start + coil_start_ind + 4),
-            JB * (-1)**(i+1) * v * dx(stator_winding_index_start + coil_start_ind + 5)
-        ]
-        Jw += sum(J_list)
-
-    return Jm + Jw
-
-def pdeRes(u,v,uhat,dx,p,s,Hc,vacuum_perm,i_abc):
-    """
-    The variational form of the PDE residual for the magnetostatic problem
-    """
-    res = 0.
-    gradu = gradx(u,uhat)
-    gradv = gradx(v,uhat)
-    num_components = 4 * 3 * p + 2 * s
-    for i in range(num_components):
-        res += 1./vacuum_perm*(1/RelativePermeability(i + 1, u, uhat))\
-                *dot(gradu,gradv)*J(uhat)*dx(i + 1)
-    res -= JS(v,uhat,p,s,Hc,i_abc)
-    return res
-
-
-class OuterBoundary(SubDomain):
-    """
-    Define the subdomain for the outer boundary
-    """
-    def inside(self, x, on_boundary):
-        return on_boundary
-
-class MotorProblem(object):
+class MotorFEA(object):
     """
     The class of the FEniCS wrapper for the motor problem,
     with methods to compute the variational forms, partial derivatives,
@@ -322,6 +56,7 @@ class MotorProblem(object):
 
         # Partial derivatives in the mesh motion subproblem
         self.dRm_duhat = derivative(self.resM(), self.uhat)
+        
 
 
     def initMesh(self):
@@ -336,6 +71,11 @@ class MotorProblem(object):
         )
         self.dx = Measure('dx', domain=self.mesh, subdomain_data=self.subdomains_mf)
         self.dS = Measure('dS', domain=self.mesh, subdomain_data=self.boundaries_mf)
+        self.winding_id = [42,]
+        self.magnet_id = [29,]
+        self.steel_id = [1,2,3]
+        self.winding_range = range(41,112+1)
+
 
     def initFunctionSpace(self):
         """
@@ -405,20 +145,38 @@ class MotorProblem(object):
                         shape=(self.total_dofs_uhat, self.total_dofs_bc))
         return M
 
-    def getSubdomainArea(self, subdomain):
+    def areaForm(self, subdomain):
+        """
+        The UFL form for area calculation of a subdomain
+        """
+        return Constant(1.0)*J(self.uhat)*self.dx(subdomain)
+    
+    def funcIntegralForm(self, func, subdomain):
+        """
+        The UFL form for function integral calculation on a subdomain
+        """   
+        func_unit = interpolate(Constant(1.0), func.function_space())
+        return inner(func, func_unit)*J(self.uhat)*self.dx(subdomain)
+        
+    def getSubdomainArea(self, subdomains):
         """
         Compute the subdomain area based on its flag
         """
-        area = assemble(Constant(1.0)*self.dx(subdomain))
+        if type(subdomains) == int:
+            subdomain_group = [subdomains]
+        else:
+            subdomain_group = subdomains
+        area = 0
+        for subdomain_id in subdomain_group:
+            area += self.areaForm(subdomain=subdomain_id)
         return area
-
+        
     def getFuncAverageSubdomain(self, func, subdomain):
         """
         Compute the average function value over a subdomain
         """
-        func_unit = interpolate(Constant(1.0), func.function_space())
-        integral = assemble(inner(func, func_unit)*self.dx(subdomain))
-        area = self.getSubdomainArea(subdomain)
+        integral = assemble(self.funcIntegralForm(func, subdomain))
+        area = assemble(self.getSubdomainArea(subdomain))
         avg_func = integral/area
         return avg_func
 
@@ -439,9 +197,29 @@ class MotorProblem(object):
             subdomain_avg_A_z_deltas.append(
                 abs(subdomain_avg_A_z[2*i] - subdomain_avg_A_z[2*i+1])
             )
-
         return subdomain_avg_A_z, subdomain_avg_A_z_deltas
+    
+    def calcAreas(self):
+        self.winding_area = self.getSubdomainArea(self.winding_id)
+        self.magnet_area = self.getSubdomainArea(self.magnet_id)
+        self.steel_area = self.getSubdomainArea(self.steel_id)
 
+        return (assemble(self.winding_area), 
+                assemble(self.magnet_area), 
+                assemble(self.steel_area))
+               
+
+        
+    def calcAreaDerivatives(self):
+        dWAduhat = assemble(derivative(self.winding_area, self.uhat))
+        dMAduhat = assemble(derivative(self.magnet_area, self.uhat))
+        dSAduhat = assemble(derivative(self.steel_area, self.uhat))
+        
+        return (dWAduhat.get_local(), 
+                dMAduhat.get_local(), 
+                dSAduhat.get_local())
+    
+            
     def fluxLinkage(self):
         pass
 
@@ -472,15 +250,13 @@ class MotorProblem(object):
         uhat_back = Function(self.VHAT)
         uhat_back.assign(-self.uhat)
         self.moveMesh(uhat_back)
-        print("max_disp: ", max_disp)
-        print("min_cell_size: ", min_cell_size)
         min_STEPS = round(max_disp/min_cell_size)
         if min_STEPS >= STEPS:
             STEPS = min_STEPS
         increment_deltas = edge_deltas/STEPS
         return STEPS, increment_deltas
 
-    def setUpMeshMotionSolver(self):
+    def setUpMeshMotionSolver(self, report):
         """
         Set up the Newton solver for the mesh motion subproblem, compute the step size
         for the displacement increases based on the mesh size from the previous step.
@@ -510,42 +286,46 @@ class MotorProblem(object):
         self.solver_m.parameters['snes_solver']['maximum_iterations'] = MAX_ITERS_M
         self.solver_m.parameters['snes_solver']['linear_solver']='mumps'
         self.solver_m.parameters['snes_solver']['error_on_nonconvergence'] = False
+        self.solver_m.parameters['snes_solver']['report'] = report
 
-    def solveMeshMotion(self):
+    def solveMeshMotion(self, report=False):
 
         """
         Solve for the mesh motion subproblem
         """
         # Set up the Newton solver based on the boundary conditions
-        self.setUpMeshMotionSolver()
+        self.setUpMeshMotionSolver(report)
 
         # Incrementally set the BCs to increase to `edge_deltas`
         print(80*"=")
         print(' FEA: total steps for mesh motion:', self.STEPS)
         print(80*"=")
         for i in range(self.STEPS):
-            print(80*"=")
-            print("  FEA: Step "+str(i+1)+" of mesh movement")
-            print(80*"=")
+            if report == True:
+                print(80*"=")
+                print("  FEA: Step "+str(i+1)+" of mesh movement")
+                print(80*"=")
             self.uhat_old.assign(self.uhat)
 
             for i in range(self.total_dofs_bc):
                 self.uhat_old.vector()[self.edge_indices[i]] += self.increment_deltas[i]
             self.solver_m.solve()
+        
+        if report == True:
+            print(80*"=")
+            print(' FEA: L2 error of the mesh motion on the edges:',
+                        np.linalg.norm(self.uhat.vector()[self.edge_indices]
+                                         - self.edge_deltas))
+            print(80*"=")
 
-        print(80*"=")
-        print(' FEA: L2 error of the mesh motion on the edges:',
-                    np.linalg.norm(self.uhat.vector()[self.edge_indices]
-                                     - self.edge_deltas))
-        print(80*"=")
-
-    def solveMagnetostatic(self):
+    def solveMagnetostatic(self, report=False):
         """
         Solve the magnetostatic problem with the mesh movements `uhat`
         """
-        print(80*"=")
-        print(" FEA: Solving the magnetostatic problem on the deformed mesh")
-        print(80*"=")
+        if report == True:
+            print(80*"=")
+            print(" FEA: Solving the magnetostatic problem on the deformed mesh")
+            print(80*"=")
         bc_ms = self.setBCMagnetostatic()
         res_ms = self.resMS()
         A_z_ = TrialFunction(self.V)
@@ -566,33 +346,44 @@ class MotorProblem(object):
         solver_ms.parameters['snes_solver']['maximum_iterations'] = MAX_ITERS_M
         solver_ms.parameters['snes_solver']['linear_solver']='mumps'
         solver_ms.parameters['snes_solver']['error_on_nonconvergence'] = False
+        solver_ms.parameters['snes_solver']['report'] = report
         solver_ms.solve()
         self.B = project(as_vector((self.A_z.dx(1),-self.A_z.dx(0))),
                         VectorFunctionSpace(self.mesh,'DG',0))
-        
-        subdomain_range = range(41,112+1)
 
         self.winding_delta_A_z = np.array(
          self.extractSubdomainAverageA_z(
              func=self.A_z,
-             subdomain_range=subdomain_range
+             subdomain_range=self.winding_range
         )[1])
 
-
-        self.winding_area = self.getSubdomainArea(
-            subdomain=42
-        )
-
-        self.magnet_area = self.getSubdomainArea(
-            subdomain=29
-        )
-
-        steel_subdomains = [1, 2, 3]
-        self.steel_area = 0
-        for subdomain in steel_subdomains:
-            self.steel_area += self.getSubdomainArea(
-                subdomain=subdomain
+    # TODO
+    def calcWindingAz(self):
+        winding_A_z = []
+        for subdomain in self.winding_range:
+            winding_A_z.append(
+                self.getFuncAverageSubdomain(self.A_z, subdomain)
             )
+        return winding_A_z
+    
+    # TODO
+    def calcWindingAzDerivatives(self):
+        dAz = []
+        duhat = []
+        for subdomain in self.winding_range:
+            func_integral_form = self.funcIntegralForm(self.A_z, subdomain)
+            area_form = self.areaForm(subdomain)
+            func_integral_i = assemble(func_integral_form)
+            area_i = assemble(area_form)
+            dAz_i = 1/area_i*assemble(derivative(func_integral_form, self.A_z))
+            
+            # quotient rule for derivatives; Nu: numerator, De: denominator
+            dNudu = assemble(derivative(func_integral_form, self.uhat))
+            dDedu = assemble(derivative(area_form, self.uhat))
+            
+            duhat_i = (area_i*dNudu + func_integral_i*dDedu)/area_i**2
+            
+            
         # NOTES FOR RU:
         # NECESSARY OUTPUTS ARE:
         #   - self.winding_delta_A_z
@@ -653,38 +444,37 @@ if __name__ == "__main__":
         -iq * np.sin(-2*np.pi/3),
         -iq * np.sin(2*np.pi/3),
     ]
-    f = open('init_edge_coords.txt', 'r+')
+    f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-    f = open('edge_coord_deltas.txt', 'r+')
+    f = open('edge_deformation_data/edge_coord_deltas.txt', 'r+')
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-    print("number of nonzero displacements:", np.count_nonzero(edge_deltas))
+#    print("Number of nonzero displacements:", np.count_nonzero(edge_deltas))
     
     # One-time computation for the initial edge coordinates from
     # the code that creates the mesh file
     # old_edge_coords = getInitialEdgeCoords()
     
-    problem = MotorProblem(mesh_file="motor_mesh_test_1", i_abc=i_abc, 
+    problem = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
                             old_edge_coords=old_edge_coords)
+    
+    problem.edge_deltas = edge_deltas
+    problem.solveMeshMotion(report=True)
+#    plt.figure(1)
+#    problem.moveMesh(problem.uhat)
+#    plot(problem.mesh)
+#    plt.show()
 
-    # problem.edge_deltas = edge_deltas
-    # problem.solveMeshMotion()
-    # plt.figure(1)
-    # problem.moveMesh(problem.uhat)
-    # plot(problem.mesh)
-    # plt.show()
-    problem.solveMagnetostatic()
-    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
-    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
-    vtkfile_A_z << problem.A_z
-    vtkfile_B << problem.B
+    problem.solveMagnetostatic(report=True)
+#    problem.calcWindingAzDerivatives()
+#    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
+#    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
+#    vtkfile_A_z << problem.A_z
+#    vtkfile_B << problem.B
 
-#    print("winding area:", problem.winding_area)
-#    print("magnet area:", problem.magnet_area)
-#    print("steel area:", problem.steel_area)
 #    
 #    ###### Test the average calculation for the flux linkage
 #    subdomain_range = range(41,112)

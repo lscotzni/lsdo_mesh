@@ -683,4 +683,4 @@ if __name__ == '__main__':
         rotation_angles=[0], 
         file_name='motor_mesh_test_new',
         poles=12,
-    )
+    )   

@@ -6,7 +6,7 @@ from csdl_om import Simulator
 from motor_fea import *
 
 
-class M(Model):
+class MeshMotionModel(Model):
 
     def initialize(self):
         self.parameters.declare('fea')
@@ -124,17 +124,24 @@ if __name__ == "__main__":
         -iq * np.sin(-2*np.pi/3),
         -iq * np.sin(2*np.pi/3),
     ]
-    f = open('init_edge_coords.txt', 'r+')
+    f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-    f = open('edge_coord_deltas.txt', 'r+')
+    f = open('edge_deformation_data/edge_coord_deltas.txt', 'r+')
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
+
+    print("number of nonzero displacements:", np.count_nonzero(edge_deltas))
     
-    fea = MotorProblem(mesh_file="motor_mesh_1", i_abc=i_abc, 
-                        old_edge_coords=old_edge_coords)
-    sim = Simulator(M(fea=fea))
+    # One-time computation for the initial edge coordinates from
+    # the code that creates the mesh file
+    # old_edge_coords = getInitialEdgeCoords()
+    
+    fea = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
+                            old_edge_coords=old_edge_coords)
+
+    sim = Simulator(MeshMotionModel(fea=fea))
     sim['edge_deltas'] = edge_deltas
     sim.run()
     plt.figure(1)
