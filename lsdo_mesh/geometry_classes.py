@@ -643,8 +643,9 @@ class Mesh(object):
             (sparse_val, (sparse_row, sparse_col)),
             shape=((len(self.ffd_faces) * 8, max(sparse_col) + 1))
         )
-        # print(self.shape_param_sps_mat.toarray())
-        # print(self.shape_param_sps_mat.toarray().shape)
+        print(self.shape_param_sps_mat.toarray())
+        print(self.shape_param_sps_mat.toarray().shape)
+        exit()
         
     def assemble_ffd_parametrization_new(self, coordinate_system='cartesian'):
         

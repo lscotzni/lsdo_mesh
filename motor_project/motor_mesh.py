@@ -17,7 +17,7 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     s       = 3 * p # stator slots per 360 degrees
     m       = 3 # number of phases for stator winding current
 
-    coarse_test = True
+    coarse_test = False
     if not coarse_test:
         # TARGET MESH SIZES (DIFFER FOR POINTS)
         l1      = 1e-2
@@ -74,7 +74,7 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     RS          = (Rsy+Rout)/2 # # Midpoint to cut air-gap mesh in Stator
 
     rho         = rotation_angles
-    m           = lm.Mesh(name=file_name, popup=True, rotation_angles=rho)
+    m           = lm.Mesh(name=file_name, popup=False, rotation_angles=rho)
 
     # NOTE: need to fix implementation; the process does not like lists
     # as inputs, but the option to do so makes things easier (especially 
@@ -460,12 +460,12 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
 
     right_winding_surfaces, left_winding_surfaces = [], []
     for i in range(s):
-        if i%3 == 0: # PHASE C
+        if i%3 == 0: # PHASE A
             winding_color = yellow
-            phase = 'C '
-        elif i%3 == 1: # PHASE A
-            winding_color = green
             phase = 'A '
+        elif i%3 == 1: # PHASE C
+            winding_color = green
+            phase = 'C '
         elif i%3 == 2: # PHASE B
             winding_color = pink
             phase = 'B '
@@ -489,7 +489,6 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     Magnets:                                    5 + 2*p + i,        i = 0:(p-1)
     Right Stator Windings:                      5 + 3*p + 2*i,      i = 0:(s-1)
     Left Stator Windings:                       5 + 3*p + 2*i  + 1  i = 0:(s-1)
-
 
     '''
     # asdf = []
@@ -595,12 +594,12 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     stator_ffd.add_shape_parameter(
         'stator_test_ffd',
         'theta',
-        'constant',
+        'linear',
     )
-    # m.add_face(stator_ffd)
+    m.add_face(stator_ffd)
     
     Ru_test_def_ffd  = []
-    for i in range(p):
+    for i in range(3):
         Ru_test_def_ffd.append(
             lm.Face(
                 [magnet_air_slot_1_p[i],
@@ -622,23 +621,6 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
         )
         
         m.add_face(Ru_test_def_ffd[i])
-    # Ru_test_def_ffd = lm.Face(
-    #     [magnet_air_slot_1_p[0],
-    #         magnet_air_slot_2_p[0],
-    #         magnet_air_slot_3_p[0],
-    #         magnet_air_slot_4_p[0],
-    #         magnet_air_slot_5_p[0],
-    #         magnet_air_slot_6_p[0],
-    #         magnet_air_slot_7_p[0],
-    #         magnet_air_slot_8_p[0]],
-    #     input_type='polar',
-    # )
-    # Ru_test_def_ffd.add_shape_parameter(
-    #     'Ru_test_def_ffd',
-    #     'r',
-    #     'constant',
-    # )
-    # m.add_face(Ru_test_def_ffd)
 
     m.add_all_entities_to_physical_group('curves')
 
@@ -722,6 +704,6 @@ ERRORS:
 if __name__ == '__main__':
     mesh_object = MotorMeshGenerator(
         rotation_angles=[0], 
-        file_name='motor_mesh',
+        file_name='motor_mesh_test',
         poles=12,
     )

@@ -11,37 +11,14 @@ class MeshModel(Model):
         self.parameters.declare('ffd_cps')
         self.parameters.declare('num_points')
 
-        # made initially but not sure if this is the correct method
-        # shape_sps_mat = self.create_input(
-        #     name='shape_sps_mat',
-        #     val=shape_parametrization,
-        #     shape=(shape_parametrization.shape[0], shape_parametrization.shape[1])
-        # )
-
-        # ffd_sps_mat = self.create_input(
-        #     name='ffd_sps_mat',
-        #     val=ffd_parametrization,
-        #     shape=ffd_parametrization.shape
-        # )
-
-        # edge_sps_mat = self.create_input(
-        #     name='edge_sps_mat',
-        #     val=edge_parametrization,
-        #     shape=edge_parametrization.shape
-        # )
-
-        # mesh_points_instances = self.create_input(
-        #     name='mesh_points_instances',
-        #     val=mesh_points_instances,
-        #     shape=(len(mesh_points_instances),)
-        # ) # size (n,1) for n instances, where each entry holds a numpy array
-        
-        # ffd_control_points = self.create_input(
-        #     name='ffd_control_points_instances',
-        #     val=ffd_cp_instances,
-        #     shape=(len(ffd_cp_instances),)
-        # ) # size (n,1) for n instances, where each entry holds a numpy array
-
+        # STEPS:
+        # 1. OPTIMIZER OUTPUTS UPDATED SHAPE PARAMETER VALUES
+        # 2. APPLY MAT-VEC PRODUCT BETWEEN SHAPE PARAMETER SPARSE MAT AND SHAPE PARAMETER DELTAS;
+        #       - THEN ADD TO ORIGINAL FFD CPs (FOUND IN ffd_cp_instances)
+        # 3. APPLY MAT-VEC PRODUCT BETWEEN FFD SPARSE MAT AND NEW FFD CPs
+        #       - ADD TO ORIGINAL POINT COORDINATES (FOUND IN mesh_points_instances)
+        # 4. APPLY MAT-VEC PRODUCT BETWEEN EDGE PROJECTION AND NEW POINT COORDINATES
+        #       - PRODUCES LOCATION OF NEW POINTS
 
     def define(self):
         shape_parametrization               = self.parameters['shape_parametrization']
@@ -50,12 +27,6 @@ class MeshModel(Model):
         mesh_points                         = self.parameters['mesh_points']
         ffd_cps                             = self.parameters['ffd_cps']
         num_points                          = self.parameters['num_points']
-
-        # edge_sps_mat = self.create_input(
-        #     name='edge_sps_mat',
-        #     val=edge_parametrization,
-        #     shape=edge_parametrization.shape
-        # )
 
         # SHAPE PARAMETER CONCATENATION:
         # for loop declaring shape parameters as variables
@@ -128,14 +99,7 @@ class MeshModel(Model):
 
         # ------------------------------------------------------------------------
         
-        # STEPS:
-        # 1. OPTIMIZER OUTPUTS UPDATED SHAPE PARAMETER VALUES
-        # 2. APPLY MAT-VEC PRODUCT BETWEEN SHAPE PARAMETER SPARSE MAT AND SHAPE PARAMETER DELTAS;
-        #       - THEN ADD TO ORIGINAL FFD CPs (FOUND IN ffd_cp_instances)
-        # 3. APPLY MAT-VEC PRODUCT BETWEEN FFD SPARSE MAT AND NEW FFD CPs
-        #       - ADD TO ORIGINAL POINT COORDINATES (FOUND IN mesh_points_instances)
-        # 4. APPLY MAT-VEC PRODUCT BETWEEN EDGE PROJECTION AND NEW POINT COORDINATES
-        #       - PRODUCES LOCATION OF NEW POINTS
+        
         # CSDL OPERATIONS:
         # create_input: need to use this for setting the CSDL objects of the parameters  (immutable)
         # create_output: explicitly computed output (will use this for intermediate calculations)

@@ -209,26 +209,48 @@ def JS(v,uhat,p,s,Hc,i_abc):
     JA, JB, JC = i_abc[0] * N + DOLFIN_EPS, i_abc[1] * N + DOLFIN_EPS, i_abc[2] * N + DOLFIN_EPS
 
     # OLD METHOD
+    # for i in range(int((num_windings) / (num_phases * coil_per_phase))):
+    #     coil_start_ind = i * num_phases * coil_per_phase
+    #     for j in range(3):
+    #         if j == 0:
+    #             J = JA
+    #         elif j == 1:
+    #             J = JB
+    #         elif j == 2:
+    #             J = JC
+    #         phase_start_ind = coil_per_phase * j
+    #         J_list = [
+    #             J * (-1)**i * v * dx(stator_winding_index_start + phase_start_ind + coil_start_ind),
+    #             J * (-1)**(i+1) * v * dx(stator_winding_index_start + 1 + phase_start_ind + coil_start_ind),
+    #             J * (-1)**(i+1) * v * dx(stator_winding_index_start + 2 + phase_start_ind + coil_start_ind),
+    #             J * (-1)**i * v * dx(stator_winding_index_start + 3 + phase_start_ind + coil_start_ind),
+    #             J * (-1)**i * v * dx(stator_winding_index_start + 4 + phase_start_ind + coil_start_ind),
+    #             J * (-1)**(i+1) * v * dx(stator_winding_index_start + 5 + phase_start_ind + coil_start_ind),
+    #         ]
+    #         Jw += sum(J_list)
+            # order: + - - + + - (signs switch with each instance of the phases)
+
+    # NEW METHOD
+    coil_per_phase = 2
     for i in range(int((num_windings) / (num_phases * coil_per_phase))):
         coil_start_ind = i * num_phases * coil_per_phase
         for j in range(3):
-            if j == 0:
+            if i%3 == 0: # PHASE A
                 J = JA
-            elif j == 1:
-                J = JB
-            elif j == 2:
+            if i%3 == 1: # PHASE C
                 J = JC
-            phase_start_ind = coil_per_phase * j
-            J_list = [
-                J * (-1)**i * v * dx(stator_winding_index_start + phase_start_ind + coil_start_ind),
-                J * (-1)**(i+1) * v * dx(stator_winding_index_start + 1 + phase_start_ind + coil_start_ind),
-                J * (-1)**(i+1) * v * dx(stator_winding_index_start + 2 + phase_start_ind + coil_start_ind),
-                J * (-1)**i * v * dx(stator_winding_index_start + 3 + phase_start_ind + coil_start_ind),
-                J * (-1)**i * v * dx(stator_winding_index_start + 4 + phase_start_ind + coil_start_ind),
-                J * (-1)**(i+1) * v * dx(stator_winding_index_start + 5 + phase_start_ind + coil_start_ind),
-            ]
-            Jw += sum(J_list)
-            # order: + - - + + - (signs switch with each instance of the phases)
+            if i%3 == 2: # PHASE B
+                J = JB
+        
+        J_list = [
+            JA * (-1)**i * v * dx(stator_winding_index_start + coil_start_ind),
+            JA * (-1)**(i+1) * v * dx(stator_winding_index_start + coil_start_ind + 1),
+            JC * (-1)**(i+1) * v * dx(stator_winding_index_start + coil_start_ind + 2),
+            JC * (-1)**i * v * dx(stator_winding_index_start + coil_start_ind + 3),
+            JB * (-1)**i * v * dx(stator_winding_index_start + coil_start_ind + 4),
+            JB * (-1)**(i+1) * v * dx(stator_winding_index_start + coil_start_ind + 5)
+        ]
+        Jw += sum(J_list)
 
     return Jm + Jw
 
@@ -625,7 +647,7 @@ class MotorProblem(object):
         ALE.move(self.mesh, disp)
 
 if __name__ == "__main__":
-    iq                  = 282.2 / 3
+    iq                  = 282.2 # 282.2
     i_abc               = [
         -iq * np.sin(0.),
         -iq * np.sin(-2*np.pi/3),
@@ -645,7 +667,7 @@ if __name__ == "__main__":
     # the code that creates the mesh file
     # old_edge_coords = getInitialEdgeCoords()
     
-    problem = MotorProblem(mesh_file="motor_mesh_2", i_abc=i_abc, 
+    problem = MotorProblem(mesh_file="motor_mesh_test_1", i_abc=i_abc, 
                             old_edge_coords=old_edge_coords)
 
     # problem.edge_deltas = edge_deltas
@@ -695,10 +717,15 @@ if __name__ == "__main__":
 #    #     print(problem.getSubdomainArea(subdomain=i+1))
 #    
     plt.figure(1)
-    asdf = plot(problem.A_z)
-    plt.colorbar(asdf)
+    plt1 = plot(problem.A_z)
+    plt.colorbar(plt1)
     # plot(problem.B, linewidth=40)
     # ALE.move(problem.mesh, problem.uhat)
     # plot(problem.mesh)
     # print(problem.A_z.vector().get_local()[:10])
+
+    plt.figure(2)
+    plt2 = plot(problem.B)
+    plt.colorbar(plt2)
+
     plt.show()

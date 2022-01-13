@@ -5,23 +5,10 @@ from csdl_om import Simulator
 
 # from motor_mesh_new import MotorMeshGenerator
 from motor_mesh import MotorMeshGenerator
-# from post_processing_dir import EfficiencyModel, FluxLinkageModel, ElectricalModel, MassModel
-
-# def MotorModel(Model):
-#     def initialize(self):
-#         self.parameters.declare['mesh_model_instances']
-
-#     def define(self):
-
-#         mesh_model_instances    = self.parameters['mesh_model_instances']
-
-#         for i in range(len(mesh_model_instances)):
-#             self.add(mesh_model_instances[i], name='mesh_model_{}'.format(i+1), promotes=[])
-#             self.add(EfficiencyModel(), name='efficiency_model_{}'.format(i+1), promotes=[])
-#             self.add(ElectricalModel(), name='electrical_model{}'.format(i+1), promotes=[])
-#             self.add(FluxLinkageModel(), name='flux_linkage_model{}'.format(i+1), promotes=[])
-
-
+# from post_processing_dir.efficiency_model import EfficiencyModel
+# from post_processing_dir.flux_linkage_model import FluxLinkageModel
+# from post_processing_dir.electrical_model import ElectricalModel
+# from post_processing_dir.mass_model import MassModel
 
 rotor_rotations     = np.array([
     i * 45 * np.pi / 180 for i in range(2)
@@ -42,10 +29,6 @@ mesh_objects = MotorMeshGenerator(
 ) # outputs list of mesh model instances
 
 print(mesh_objects)
-
-# motor_model = MotorModel(
-#     mesh_model_instances=mesh_objects
-# )
 
 
 exit()

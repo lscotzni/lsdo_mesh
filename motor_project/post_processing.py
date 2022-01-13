@@ -82,15 +82,26 @@ if __name__ ==  '__main__':
     t                   = 0
 
     current_amplitude   = 282.8
-    iq                  = -current_amplitude / 3
+    iq                  = -current_amplitude
     i_dq                = [0., iq]
+    # i_abc               = [
+    #     -iq * np.sin(omega * t + np.pi/2),
+    #     -iq * np.sin(omega * t - 2*np.pi/3 + np.pi/2),
+    #     -iq * np.sin(omega * t + 2*np.pi/3 + np.pi/2),
+    # ]
+
     i_abc               = [
-        -iq * np.sin(omega * t + np.pi/2),
         -iq * np.sin(omega * t - 2*np.pi/3 + np.pi/2),
+        -iq * np.sin(omega * t + np.pi/2),
         -iq * np.sin(omega * t + 2*np.pi/3 + np.pi/2),
     ]
 
-    fea = MagnetostaticProblem(i_abc=i_abc)
+    f = open('init_edge_coords.txt', 'r+')
+    old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
+    f.close()
+
+    fea = MotorProblem(mesh_file="motor_mesh_2", i_abc=i_abc, 
+                            old_edge_coords=old_edge_coords)
     fea.solveMagnetostatic()
     winding_delta_A_z   = fea.winding_delta_A_z
     winding_area        = fea.winding_area
@@ -98,7 +109,9 @@ if __name__ ==  '__main__':
     steel_area          = fea.steel_area
 
     # motor_length_array = np.linspace(2,10,20)
-    motor_length_array = np.linspace(0.5,1.5,10)
+    min_len  =  20e-3
+    max_len  =  100e-3
+    motor_length_array = np.linspace(min_len,max_len,10)
     efficiency_array, mass_array = [], []
     motor_length = motor_length_array[0]
     for length in motor_length_array:
@@ -156,5 +169,5 @@ if __name__ ==  '__main__':
     plt.xlabel('Motor Length')
     plt.ylabel('Motor Mass (kg)')
 
-    plt.show()
+    # plt.show()
         
