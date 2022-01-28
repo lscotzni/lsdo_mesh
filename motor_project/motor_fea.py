@@ -84,6 +84,7 @@ class MotorFEA(object):
         """
         self.V = FunctionSpace(self.mesh, 'P', 1)
         self.VHAT = VectorFunctionSpace(self.mesh, 'P', 1)
+        self.V0 = FunctionSpace(self.mesh, 'DG', 0)
 
     def locateMeshMotion(self,old_edge_coords):
         """
@@ -219,6 +220,36 @@ class MotorFEA(object):
                 dMAduhat.get_local(), 
                 dSAduhat.get_local())
     
+    def calcMaxFluxDensity(self):
+        B_l2_func = project(self.gradA_z[0]**2+self.gradA_z[1]**2, self.V0)
+        file = File("B_l2.pvd")
+        file << B_l2_func
+        max_cell = np.argmax(B_l2_func.vector()[:])
+        max_vertice = self.V.dofmap().cell_dofs(max_cell)
+        x0 = self.V0.tabulate_dof_coordinates()
+        max_coords = x0[max_cell]
+        x1 = self.V.tabulate_dof_coordinates()
+        max_coords_1 = x1[max_vertice]
+        max_B_l2 = max(B_l2_func.vector())
+        print("Maximum of L2 norm of B: \n", "B_max =", max_B_l2, "at", max_cell)
+        return max_B_l2, max_cell, max_vertice
+        
+    def extractFluxDensityDerivatives(self):
+        v0 = TestFunction(self.V0)
+
+    #    B_l2 = (gradA_z[0]**2+gradA_z[1]**2)*problem.v*dx
+    #    B_l2 = (problem.B.sub(0)**2+problem.B.sub(1)**2)*v*dx
+    #    B_l2 = B_l2_func*v0*dx
+        B_l2_form = (self.gradA_z[0]**2+self.gradA_z[1]**2)*v0*self.dx
+
+        dB_l2_dA = derivative(B_l2_form, self.A_z)
+        dB_l2_dA_p = m2p(assemble(dB_l2_dA))
+        max_B_l2, max_cell, max_vertice = self.calcMaxFluxDensity()
+        print("Extracted derivatives:")
+        return dB_l2_dA_p.getValues(max_cell, max_vertice)
+        
+    
+    
     def getPointCoords(self, radius=0.05):
         num_stator = 36
         a = 2*pi/num_stator*np.arange(36)
@@ -258,12 +289,9 @@ class MotorFEA(object):
             x = points[i]
             x_point = Point(*x) 
             cell_id = self.mesh.bounding_box_tree().compute_first_entity_collision(x_point)
-#            print("Cell id: ", cell_id)
             cell = Cell(self.mesh, cell_id)
             vertex_dofs = self.V.dofmap().cell_dofs(cell_id)
-#            print("Indices of near dofs:", vertex_dofs)
             coordinate_dofs = np.array(cell.get_vertex_coordinates())
-#            print("Coordinates of the near dofs:", coordinate_dofs)
             # Evaluate the basis function at the point
             basis_func = self.V.element().evaluate_basis_all(
                                 x, coordinate_dofs, cell.orientation())
@@ -407,14 +435,14 @@ class MotorFEA(object):
         solver_ms.parameters['snes_solver']['error_on_nonconvergence'] = False
         solver_ms.parameters['snes_solver']['report'] = report
         solver_ms.solve()
-        self.B = project(as_vector((self.A_z.dx(1),-self.A_z.dx(0))),
-                        VectorFunctionSpace(self.mesh,'DG',0))
-
+        self.gradA_z = gradx(self.A_z, self.uhat)
+        self.B = project(as_vector((self.gradA_z[1], -self.gradA_z[0])),
+                            VectorFunctionSpace(self.mesh,'DG',0))
         self.winding_delta_A_z = np.array(
-         self.extractSubdomainAverageA_z(
-             func=self.A_z,
-             subdomain_range=self.winding_range
-        )[1])
+                                self.extractSubdomainAverageA_z(    
+                                     func=self.A_z,
+                                     subdomain_range=self.winding_range
+                                )[1])
 
 
 
@@ -491,23 +519,34 @@ if __name__ == "__main__":
     problem = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
                             old_edge_coords=old_edge_coords)
     
-    problem.edge_deltas = edge_deltas
+    problem.edge_deltas = 0.1*edge_deltas
 #    points = np.array([[0.033,0.055],[-0.05,-0.05]])
     points = problem.getPointCoords()
     problem.solveMagnetostatic(report=False)
-    M = problem.getPointEvalDerivatives(points)
-    print(M.dot(problem.A_z.vector().get_local()))
+#    M = problem.getPointEvalDerivatives(points)
+#    print(M.dot(problem.A_z.vector().get_local()))
 #    print(problem.A_z(0.033,0.055), problem.A_z(-0.05,-0.05))
-    
+#    plt.figure(1)
+#    plot(problem.A_z)
+#    plt.show()
+    print(problem.extractFluxDensityDerivatives())
     problem.solveMeshMotion(report=False)
-    plt.figure(1)
-    plot(problem.mesh)
-    plt.plot(x,y,'r+')
-    plt.show()
+#    plt.figure(1)
+#    plot(problem.mesh)
+#    plt.plot(x,y,'r+')
+#    plt.show()
+    
 
     problem.solveMagnetostatic(report=False)
-    M = problem.getPointEvalDerivatives(points)
-    print(M.dot(problem.A_z.vector().get_local()))
+#    M = problem.getPointEvalDerivatives(points)
+#    print(M.dot(problem.A_z.vector().get_local()))
+    print(problem.extractFluxDensityDerivatives())
+#    plt.figure(2)
+#    plot(problem.A_z)
+#    plt.show()
+#    
+
+#    print(m2p(assemble(dB_l2_dA)).getSizes())
 #    print(problem.A_z(0.033,0.055), problem.A_z(-0.05,-0.05))
     
 #    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
