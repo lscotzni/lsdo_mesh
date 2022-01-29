@@ -220,34 +220,30 @@ class MotorFEA(object):
                 dMAduhat.get_local(), 
                 dSAduhat.get_local())
     
-    def calcMaxFluxDensity(self):
-        B_l2_func = project(self.gradA_z[0]**2+self.gradA_z[1]**2, self.V0)
-        file = File("B_l2.pvd")
-        file << B_l2_func
-        max_cell = np.argmax(B_l2_func.vector()[:])
-        max_vertice = self.V.dofmap().cell_dofs(max_cell)
-        x0 = self.V0.tabulate_dof_coordinates()
-        max_coords = x0[max_cell]
-        x1 = self.V.tabulate_dof_coordinates()
-        max_coords_1 = x1[max_vertice]
-        max_B_l2 = max(B_l2_func.vector())
-        print("Maximum of L2 norm of B: \n", "B_max =", max_B_l2, "at", max_cell)
-        return max_B_l2, max_cell, max_vertice
+#    def calcMaxFluxDensity(self):
+#        B_l2_func = project(self.gradA_z[0]**2+self.gradA_z[1]**2, self.V0)
+#        file = File("B.pvd")
+#        file << self.B
+#        file = File("B_l2.pvd")
+#        file << B_l2_func
+#        max_cell = np.argmax(B_l2_func.vector()[:])
+#        max_vertice = self.V.dofmap().cell_dofs(max_cell)
+#        x0 = self.V0.tabulate_dof_coordinates()
+#        max_coords = x0[max_cell]
+#        x1 = self.V.tabulate_dof_coordinates()
+#        max_coords_1 = x1[max_vertice]
+#        max_B_l2 = max(B_l2_func.vector())
+#        print("Maximum of L2 norm of B: \n", "B_max =", max_B_l2, "at", max_cell)
+#        return max_B_l2, max_cell, max_vertice
         
     def extractFluxDensityDerivatives(self):
-        v0 = TestFunction(self.V0)
-
-    #    B_l2 = (gradA_z[0]**2+gradA_z[1]**2)*problem.v*dx
-    #    B_l2 = (problem.B.sub(0)**2+problem.B.sub(1)**2)*v*dx
-    #    B_l2 = B_l2_func*v0*dx
-        B_l2_form = (self.gradA_z[0]**2+self.gradA_z[1]**2)*v0*self.dx
-
+        B_l2_form = (self.gradA_z[0]**2+self.gradA_z[1]**2)*self.dx
+        self.B_l2 = assemble(B_l2_form)
+        print("B_l2: ", self.B_l2)
         dB_l2_dA = derivative(B_l2_form, self.A_z)
-        dB_l2_dA_p = m2p(assemble(dB_l2_dA))
-        max_B_l2, max_cell, max_vertice = self.calcMaxFluxDensity()
-        print("Extracted derivatives:")
-        return dB_l2_dA_p.getValues(max_cell, max_vertice)
-        
+        dB_l2_dA_p = assemble(dB_l2_dA)
+        print("dB_l2_dA_z: ")
+        return dB_l2_dA_p.get_local()
     
     
     def getPointCoords(self, radius=0.05):
