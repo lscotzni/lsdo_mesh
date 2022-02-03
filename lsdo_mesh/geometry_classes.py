@@ -10,7 +10,7 @@ from csdl import Model
 
 from lsdo_mesh.mesh_ffd_objects import *
 from lsdo_mesh.remove_duplicates import remove_duplicate_points, remove_duplicate_curves
-from lsdo_mesh.csdl_mesh_model import MeshModel
+from lsdo_mesh.csdl_mesh_model import MeshModel, ShapeParameterModel
 
 from lsdo_mesh.geometry_operations import rotate
 import os
@@ -593,6 +593,12 @@ class Mesh(object):
     def assemble_shape_parameter_parametrization(self, coordinate_system='cartesian'):
         sparse_val, sparse_row, sparse_col = [], [], []
         column_counter = 0
+
+        self.shape_parameter_list    = []
+        self.axis_list               = []
+        self.parameter_type_list     = [] # holds strings (constant & linear)
+        self.parameter_index_list    = [] # holds 1 for constant and 2 for linear
+
         for i, face in enumerate(self.ffd_faces):
 
             # sparse matrix formatting:
@@ -601,6 +607,11 @@ class Mesh(object):
             
             all_face_shape_parameters = vars(face)['parameters']
             for j, parameters in enumerate(all_face_shape_parameters):
+                # Adding parameters to lists in order of definition
+                self.shape_parameter_list.append(parameters[0])
+                self.axis_list.append(parameters[1])
+                self.parameter_type_list.append(parameters[2])
+
                 # format for parameters: [name, axis, def_type]
                 if parameters[1] in ['x', 'theta']:
                     dim = 0 # applied to first coordinate
@@ -610,6 +621,8 @@ class Mesh(object):
                     sparse_row.extend(list(np.arange(8 * i + 1, 8 * (i+1), 2)))
                 
                 if parameters[2] is 'constant':
+                    self.parameter_index_list.append(1) # adding 1 for constant
+
                     col = 1
                     u   = 1
                     # contains 1 entry in vector
@@ -617,6 +630,8 @@ class Mesh(object):
                     sparse_col.extend([column_counter] * 4)
 
                 elif parameters[2] is 'linear':
+                    self.parameter_index_list.append(2) # adding 2 for linear
+
                     col = 2
                     u   = 1/2  # use negative for one way, positive for the other
                     # contains 2 entries in vector
@@ -645,6 +660,10 @@ class Mesh(object):
         )
         print(self.shape_param_sps_mat.toarray())
         print(self.shape_param_sps_mat.toarray().shape)
+        print(shape_parameter_list)
+        print(axis_list)
+        print(parameter_type_list)
+        print(parameter_index_list)
         exit()
         
     def assemble_ffd_parametrization_new(self, coordinate_system='cartesian'):
@@ -1008,6 +1027,12 @@ class Mesh(object):
         # 
         # register_output: we will use this to register the final set of edge node coordinates
         # new_point_location = matvec(ffd_param, ffd_deltas) + original_points
+
+        self.shape_parameter_model    = ShapeParameterModel(
+            shape_parameter_list_input=self.parameter_type_list,
+            shape_parameter_index_input=self.parameter_index_list,
+            shape_parametrization=self.shape_param_sps_mat,
+        )
         self.mesh_model = []
         for i in range(len(self.rotation_angles)):
             self.mesh_model.append(

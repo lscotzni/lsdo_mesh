@@ -60,7 +60,7 @@ def JS(v,uhat,p,s,Hc,i_abc):
     stator_winding_index_start  = 4 + 3 * p + 1
     stator_winding_index_end    = stator_winding_index_start + num_windings
     Jw = 0.
-    N = 39
+    N = 13
     JA, JB, JC = i_abc[0] * N + DOLFIN_EPS, i_abc[1] * N + DOLFIN_EPS, i_abc[2] * N + DOLFIN_EPS
 
     # OLD METHOD
@@ -87,23 +87,24 @@ def JS(v,uhat,p,s,Hc,i_abc):
 
     # NEW METHOD
     coil_per_phase = 2
+    num_windings = s
     for i in range(int((num_windings) / (num_phases * coil_per_phase))):
         coil_start_ind = i * num_phases * coil_per_phase
         for j in range(3):
             if i%3 == 0: # PHASE A
                 J = JA
             if i%3 == 1: # PHASE C
-                J = JC
-            if i%3 == 2: # PHASE B
                 J = JB
+            if i%3 == 2: # PHASE B
+                J = JC
         
         J_list = [
-            JA * (-1)**i * v * dx(stator_winding_index_start + coil_start_ind),
-            JA * (-1)**(i+1) * v * dx(stator_winding_index_start + coil_start_ind + 1),
+            JB * (-1)**(i+1) * v * dx(stator_winding_index_start + coil_start_ind),
+            JA * (-1)**(i) * v * dx(stator_winding_index_start + coil_start_ind + 1),
             JC * (-1)**(i+1) * v * dx(stator_winding_index_start + coil_start_ind + 2),
-            JC * (-1)**i * v * dx(stator_winding_index_start + coil_start_ind + 3),
-            JB * (-1)**i * v * dx(stator_winding_index_start + coil_start_ind + 4),
-            JB * (-1)**(i+1) * v * dx(stator_winding_index_start + coil_start_ind + 5)
+            JB * (-1)**(i) * v * dx(stator_winding_index_start + coil_start_ind + 3),
+            JA * (-1)**(i+1) * v * dx(stator_winding_index_start + coil_start_ind + 4),
+            JC * (-1)**(i) * v * dx(stator_winding_index_start + coil_start_ind + 5)
         ]
         Jw += sum(J_list)
 

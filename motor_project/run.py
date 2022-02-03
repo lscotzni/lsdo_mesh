@@ -3,8 +3,8 @@ import csdl
 from csdl import Model
 from csdl_om import Simulator
 
-# from motor_mesh_new import MotorMeshGenerator
-from motor_mesh import MotorMeshGenerator
+from motor_mesh_new import MotorMeshGenerator
+# from motor_mesh import MotorMeshGenerator
 # from post_processing_dir.efficiency_model import EfficiencyModel
 # from post_processing_dir.flux_linkage_model import FluxLinkageModel
 # from post_processing_dir.electrical_model import ElectricalModel

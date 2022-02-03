@@ -35,10 +35,14 @@ class FluxLinkageModel(Model):
             shape=(int(s/3),)
         )
 
-        for i in range(int(s/9)):
-            delta_A_z_a[3*i:3*i+3] = winding_delta_A_z[9*i:9*i + 3]
-            delta_A_z_b[3*i:3*i+3] = winding_delta_A_z[9*i + 3:9*i + 6]
-            delta_A_z_c[3*i:3*i+3] = winding_delta_A_z[9*i + 6:9*i + 9]
+        # for i in range(int(s/9)):
+        #     delta_A_z_a[3*i:3*i+3] = winding_delta_A_z[9*i:9*i + 3]
+        #     delta_A_z_b[3*i:3*i+3] = winding_delta_A_z[9*i + 3:9*i + 6]
+        #     delta_A_z_c[3*i:3*i+3] = winding_delta_A_z[9*i + 6:9*i + 9]
+
+        delta_A_z_b[:]  =  winding_delta_A_z[0::3]
+        delta_A_z_a[:]  =  winding_delta_A_z[1::3]
+        delta_A_z_c[:]  =  winding_delta_A_z[2::3]
 
         # delta_A_z_a_sum =  self.register_output(
         #     name='delta_A_z_a_sum',

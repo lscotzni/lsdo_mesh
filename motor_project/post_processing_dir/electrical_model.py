@@ -15,19 +15,11 @@ class ElectricalModel(Model): # could also call Battery Model?
 
         # -------------------- INPUTS TO MODEL --------------------
         p = 12
-        torque_scale = self.create_input(name='torque_scale', val=3/2*p/2)
-        # theta  = self.create_input(name='theta', val=0.)
-        theta  = self.create_input(name='theta', val=np.pi/2)
+        theta  = self.create_input(name='theta', val=0)
         omega   = self.declare_variable(name='omega')
-        # phase_current_abc  = self.create_input(
-        #     name='phase_current_abc', 
-        #     val=np.array([94.26 * 39, 47.13 * 39, -47.13 * 39]),
-        #     # val=np.array([66.65 * 39, -91.04 * 39, 24.4 * 39]),
-        #     shape=(3,)
-        # )
 
         motor_length = self.declare_variable(name='motor_length', shape=(1,))
-        num_windings = self.declare_variable(name='num_windings', shape=(1,), val=39)
+        num_windings = self.declare_variable(name='num_windings', shape=(1,))
         winding_area = self.declare_variable(name='winding_area')
 
         # flux_linkage_abc  = self.create_input(name='flux_linkage_abc', shape=(3,))
@@ -42,11 +34,14 @@ class ElectricalModel(Model): # could also call Battery Model?
         flux_linkage_abc[0] = flux_linkage_a_i * motor_length * num_windings
         flux_linkage_abc[1] = flux_linkage_b_i * motor_length * num_windings
         flux_linkage_abc[2] = flux_linkage_c_i * motor_length * num_windings
+        # flux_linkage_abc[0] = flux_linkage_a_i * motor_length
+        # flux_linkage_abc[1] = flux_linkage_b_i * motor_length
+        # flux_linkage_abc[2] = flux_linkage_c_i * motor_length
         
         # wire_resistance = self.create_input(name='wire_resistance')
         # wire_resistance = 1.68e-8 * motor_length / (winding_area/39) * 72
         # wire_resistance = 1.68e-8 * motor_length / (winding_area/39) * 18
-        wire_resistance = 1.68e-8 * motor_length / (winding_area/num_windings) * 18 * num_windings
+        wire_resistance = 1.68e-8 * motor_length / (winding_area*0.65/num_windings) * 36 * num_windings
         wire_resistance = self.register_output(
             name='wire_resistance',
             var = wire_resistance
@@ -116,7 +111,7 @@ class ElectricalModel(Model): # could also call Battery Model?
 
         output_torque = self.register_output(
             name='output_torque',
-            var=torque_scale*(flux_linkage_dq[0]*phase_current_dq[1] - flux_linkage_dq[1]*phase_current_dq[0])
+            var=3/2*p/2*(flux_linkage_dq[0]*phase_current_dq[1] - flux_linkage_dq[1]*phase_current_dq[0])
         )
 
 

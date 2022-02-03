@@ -23,7 +23,7 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
         l1      = 1e-2
         l2      = 3e-3
         l3      = 1e-3
-        l4      = 5e-4
+        l4      = 3e-4
         ks      = 1e-2 # target mesh size
     elif coarse_test:
         l1      = 1e-2
@@ -74,7 +74,7 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     RS          = (Rsy+Rout)/2 # # Midpoint to cut air-gap mesh in Stator
 
     rho         = rotation_angles
-    m           = lm.Mesh(name=file_name, popup=True, rotation_angles=rho)
+    m           = lm.Mesh(name=file_name, popup=False, rotation_angles=rho)
 
     # NOTE: need to fix implementation; the process does not like lists
     # as inputs, but the option to do so makes things easier (especially 
@@ -142,40 +142,43 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     ]
 
     # -- Stator Inner Surface
+    shift = theta_t / 2
+    # shift = 0
     stator_inner_surface_1_p = [
-        lm.Point(Rsy, 2 * np.pi / s * i, ms=l3, mode='polar') for i in range(s)
+        # lm.Point(Rsy, theta_t * i + shift, ms=l3, mode='polar') for i in range(s)
+        lm.Point(Rsy, theta_t * i + shift, ms=l3, mode='polar') for i in range(s)
     ]
 
     stator_inner_surface_2_p = [
-        lm.Point(Rsy, theta_sso / 2 + 2 * np.pi / s * i, ms=l3, mode='polar') for i in range(s)
+        lm.Point(Rsy, theta_sso / 2 + theta_t * i + shift, ms=l3, mode='polar') for i in range(s)
     ]
 
     stator_inner_surface_3_p = [
-        lm.Point(Rssi, theta_sso / 2 + 2 * np.pi / s * i, ms=l3, mode='polar') for i in range(s)
+        lm.Point(Rssi, theta_sso / 2 + theta_t * i + shift, ms=l3, mode='polar') for i in range(s)
     ]
 
     stator_inner_surface_4_p = [
-        lm.Point(Rssi, theta_ssi / 2 + 2 * np.pi / s * i, ms=l3, mode='polar') for i in range(s)
+        lm.Point(Rssi, theta_ssi / 2 + theta_t * i + shift, ms=l3, mode='polar') for i in range(s)
     ]
 
     stator_inner_surface_5_p = [
-        lm.Point(Rs, theta_ssi / 2 + 2 * np.pi / s * i, ms=l4, mode='polar') for i in range(s)
+        lm.Point(Rs, theta_ssi / 2 + theta_t * i + shift, ms=l4, mode='polar') for i in range(s)
     ]
 
     stator_inner_surface_6_p = [
-        lm.Point(Rs, theta_t - theta_ssi / 2 + 2 * np.pi / s * i, ms=l4, mode='polar') for i in range(s)
+        lm.Point(Rs, theta_t - theta_ssi / 2 + theta_t * i + shift, ms=l4, mode='polar') for i in range(s)
     ]
 
     stator_inner_surface_7_p = [
-        lm.Point(Rssi, theta_t - theta_ssi / 2 + 2 * np.pi / s * i, ms=l3, mode='polar') for i in range(s)
+        lm.Point(Rssi, theta_t - theta_ssi / 2 + theta_t * i + shift, ms=l3, mode='polar') for i in range(s)
     ]
 
     stator_inner_surface_8_p = [
-        lm.Point(Rssi, theta_t - theta_sso / 2 + 2 * np.pi / s * i, ms=l3, mode='polar') for i in range(s)
+        lm.Point(Rssi, theta_t - theta_sso / 2 + theta_t * i + shift, ms=l3, mode='polar') for i in range(s)
     ]
 
     stator_inner_surface_9_p = [
-        lm.Point(Rsy, theta_t - theta_sso / 2 + 2 * np.pi / s * i, ms=l3, mode='polar') for i in range(s)
+        lm.Point(Rsy, theta_t - theta_sso / 2 + theta_t * i + shift, ms=l3, mode='polar') for i in range(s)
     ]
 
     # -- Domain Boundary
@@ -184,8 +187,8 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
         domain_boundary_p.extend(lm.rotate([domain_boundary_p[0]], angle = [0., 0., (i + 1) * np.pi / 2]))
 
     # -- Stator Winding Mid-Section
-    stator_winding_mid_p    = [lm.Point(Rssi, 0., ms=l3)]
-    [stator_winding_mid_p.extend(lm.rotate([stator_winding_mid_p[0]], angle = [0., 0., 2 * (i + 1) * np.pi / s])) for i in range(s-1)]
+    stator_winding_mid_p    = [lm.Point(Rssi, 0. + shift, ms=l3)]
+    [stator_winding_mid_p.extend(lm.rotate([stator_winding_mid_p[0]], angle = [0., 0., theta_t * (i + 1)])) for i in range(s-1)]
 
     # -- Stator Core Circle Sector Points
     stator_core_circle_sector_p = [
@@ -305,24 +308,26 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     # -- Stator Winding Curves
     stator_windings_c = []
     stator_windings_c.append([
-        lm.Curve(stator_winding_mid_p[0], stator_inner_surface_7_p[-1], origin, curve_type='arc'),
+        # lm.Curve(stator_winding_mid_p[0], stator_inner_surface_7_p[-1], origin, curve_type='arc'),
         lm.Curve(stator_inner_surface_7_p[-1], stator_inner_surface_8_p[-1], origin, curve_type='arc'),
         lm.Curve(stator_inner_surface_8_p[-1], stator_inner_surface_9_p[-1]),
         lm.Curve(stator_inner_surface_9_p[-1], stator_inner_surface_1_p[0], origin, curve_type='arc'),
         lm.Curve(stator_inner_surface_1_p[0], stator_inner_surface_2_p[0], origin, curve_type='arc'),
         lm.Curve(stator_inner_surface_2_p[0], stator_inner_surface_3_p[0]),
         lm.Curve(stator_inner_surface_3_p[0], stator_inner_surface_4_p[0], origin, curve_type='arc'),
-        lm.Curve(stator_inner_surface_4_p[0], stator_winding_mid_p[0], origin, curve_type='arc'),
+        # lm.Curve(stator_inner_surface_4_p[0], stator_winding_mid_p[0], origin, curve_type='arc'),
+        lm.Curve(stator_inner_surface_4_p[0], stator_inner_surface_7_p[-1], origin, curve_type='arc'),
     ])
     stator_windings_c.extend([[
-        lm.Curve(stator_winding_mid_p[i+1], stator_inner_surface_7_p[i], origin, curve_type='arc'),
+        # lm.Curve(stator_winding_mid_p[i+1], stator_inner_surface_7_p[i], origin, curve_type='arc'),
         lm.Curve(stator_inner_surface_7_p[i], stator_inner_surface_8_p[i], origin, curve_type='arc'),
         lm.Curve(stator_inner_surface_8_p[i], stator_inner_surface_9_p[i]),
         lm.Curve(stator_inner_surface_9_p[i], stator_inner_surface_1_p[i+1], origin, curve_type='arc'),
         lm.Curve(stator_inner_surface_1_p[i+1], stator_inner_surface_2_p[i+1], origin, curve_type='arc'),
         lm.Curve(stator_inner_surface_2_p[i+1], stator_inner_surface_3_p[i+1]),
         lm.Curve(stator_inner_surface_3_p[i+1], stator_inner_surface_4_p[i+1], origin, curve_type='arc'),
-        lm.Curve(stator_inner_surface_4_p[i+1], stator_winding_mid_p[i+1], origin, curve_type='arc'),
+        # lm.Curve(stator_inner_surface_4_p[i+1], stator_winding_mid_p[i+1], origin, curve_type='arc'),
+        lm.Curve(stator_inner_surface_4_p[i+1], stator_inner_surface_7_p[i], origin, curve_type='arc'),
     ] for i in range(s-1)])
 
     stator_windings_c =  list(
@@ -332,19 +337,21 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     # -- Air Gap Curves
     air_gap_curves = []
     air_gap_curves.extend([[
-        lm.Curve(stator_winding_mid_p[i], stator_inner_surface_4_p[i], origin, curve_type='arc'),
+        # lm.Curve(stator_winding_mid_p[i], stator_inner_surface_4_p[i], origin, curve_type='arc'),
         lm.Curve(stator_inner_surface_4_p[i], stator_inner_surface_5_p[i]),
         lm.Curve(stator_inner_surface_5_p[i], stator_inner_surface_6_p[i], origin, curve_type='arc'),
         lm.Curve(stator_inner_surface_6_p[i], stator_inner_surface_7_p[i]),
-        lm.Curve(stator_inner_surface_7_p[i], stator_winding_mid_p[i + 1], origin, curve_type='arc'),
+        # lm.Curve(stator_inner_surface_7_p[i], stator_winding_mid_p[i + 1], origin, curve_type='arc'),
+        lm.Curve(stator_inner_surface_7_p[i], stator_inner_surface_4_p[i + 1], origin, curve_type='arc'),
     ] for i in range(s - 1)])
 
     air_gap_curves.append([
-        lm.Curve(stator_winding_mid_p[-1], stator_inner_surface_4_p[-1], origin, curve_type='arc'),
+        # lm.Curve(stator_winding_mid_p[-1], stator_inner_surface_4_p[-1], origin, curve_type='arc'),
         lm.Curve(stator_inner_surface_4_p[-1], stator_inner_surface_5_p[-1]),
         lm.Curve(stator_inner_surface_5_p[-1], stator_inner_surface_6_p[-1], origin, curve_type='arc'),
         lm.Curve(stator_inner_surface_6_p[-1], stator_inner_surface_7_p[-1]),
-        lm.Curve(stator_inner_surface_7_p[-1], stator_winding_mid_p[0], origin, curve_type='arc'),
+        # lm.Curve(stator_inner_surface_7_p[-1], stator_winding_mid_p[0], origin, curve_type='arc'),
+        lm.Curve(stator_inner_surface_7_p[-1], stator_inner_surface_4_p[0], origin, curve_type='arc'),
     ])
 
     air_gap_curves = list(
@@ -449,13 +456,13 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
         if i%3 == 0: # PHASE B
             winding_color = yellow
             phase = 'B '
-        elif i%3 == 1: # PHASE C
+        elif i%3 == 1: # PHASE A
             winding_color = green
-            phase = 'C '
-        elif i%3 == 2: # PHASE A
-            winding_color = pink
             phase = 'A '
-        winding_surfaces.append(lm.Surface(stator_windings_c[8 * i: 8 * i + 8], physical_group=(5 + 3*p + i, 'Winding ' + phase + str(i+1)), color=winding_color))
+        elif i%3 == 2: # PHASE C
+            winding_color = pink
+            phase = 'C '
+        winding_surfaces.append(lm.Surface(stator_windings_c[7 * i: 7 * i + 7], physical_group=(5 + 3*p + i, 'Winding ' + phase + str(i+1)), color=winding_color))
         m.add_entity(winding_surfaces[i])
 
     asdf  = lm.Surface([outer_stator_surface_c],[stator_core_boundary_c], input_type='curve_loops', physical_group=(2, 'Stator Core'), color=black)
@@ -555,7 +562,7 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
         'theta', 
         'linear'
     )
-    # m.add_face(bbb)
+    m.add_face(bbb)
 
     pi_test = lm.Face([magnet_air_slot_3_p[2], magnet_air_slot_6_p[2]], input_type='polar')
     pi_test.add_shape_parameter(
@@ -563,7 +570,7 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
         'r',
         'constant'
     )
-    m.add_face(pi_test)
+    # m.add_face(pi_test)
 
     # pi_test = lm.Face([magnet_air_slot_3_p[1]], input_type='polar')
     # pi_test.add_shape_parameter(
@@ -681,6 +688,7 @@ ERRORS:
 if __name__ == '__main__':
     mesh_object = MotorMeshGenerator(
         rotation_angles=[0], 
-        file_name='motor_mesh_test_new',
+        file_name='mesh_files/motor_mesh_new',
         poles=12,
     )   
+

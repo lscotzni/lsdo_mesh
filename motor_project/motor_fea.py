@@ -74,7 +74,7 @@ class MotorFEA(object):
         self.winding_id = [42,]
         self.magnet_id = [29,]
         self.steel_id = [1,2,3]
-        self.winding_range = range(41,112+1)
+        self.winding_range = range(41,76+1)
 
 
     def initFunctionSpace(self):
@@ -207,9 +207,15 @@ class MotorFEA(object):
         return (assemble(self.winding_area), 
                 assemble(self.magnet_area), 
                 assemble(self.steel_area))
-               
 
-        
+    def calcArea_FLOAT(self):
+        func_unit = interpolate(Constant(1.0), self.A_z.function_space())
+        self.winding_area_FLOAT = assemble(inner(func_unit, func_unit) * self.dx((self.winding_id[0])))
+        self.magnet_area_FLOAT = assemble(inner(func_unit, func_unit) * self.dx((self.magnet_id[0])))
+        self.steel_area_FLOAT = sum(
+            [assemble(inner(func_unit, func_unit) * self.dx((steel_id))) for steel_id in self.steel_id]
+        )
+
     def calcAreaDerivatives(self):
         dWAduhat = assemble(derivative(self.winding_area, self.uhat))
         dMAduhat = assemble(derivative(self.magnet_area, self.uhat))
@@ -219,9 +225,19 @@ class MotorFEA(object):
                 dMAduhat.get_local(), 
                 dSAduhat.get_local())
     
-            
     def fluxLinkage(self):
-        pass
+        theta_t         = 2.0 * np.pi / self.s # VALUE DOES NOT CHANGE WITH OPTIMIZATION ITERATIONS
+        theta_air_gap   = [theta_t/2. + theta_t*i for i in range(self.s)]
+        Rr              = 80.e-3 # CHANGES WITH OPTIMIZATION ITERATIONS
+        Rs              = 81.e-3 # CHANGES WITH OPTIMIZATION ITERATIONS
+
+        air_gap_rad     = (Rr + Rs) / 2.
+        A_z_eval_loc    = [[
+            air_gap_rad * np.cos(theta),
+            air_gap_rad * np.sin(theta)
+        ] for theta in theta_air_gap]
+
+        self.A_z_air_gap     = [self.A_z(A_z_eval_loc[i][0], A_z_eval_loc[i][1]) for i in range(self.s)]
 
     def setBCMagnetostatic(self):
         """
@@ -351,6 +367,12 @@ class MotorFEA(object):
         self.B = project(as_vector((self.A_z.dx(1),-self.A_z.dx(0))),
                         VectorFunctionSpace(self.mesh,'DG',0))
 
+        self.calcArea_FLOAT()
+        self.winding_A_z = np.array(
+            [self.getFuncAverageSubdomain(func=self.A_z, subdomain=subdomain) for subdomain in self.winding_range]
+        )
+        self.fluxLinkage()
+
         self.winding_delta_A_z = np.array(
          self.extractSubdomainAverageA_z(
              func=self.A_z,
@@ -441,8 +463,8 @@ if __name__ == "__main__":
     iq                  = 282.2 # 282.2
     i_abc               = [
         -iq * np.sin(0.),
-        -iq * np.sin(-2*np.pi/3),
         -iq * np.sin(2*np.pi/3),
+        -iq * np.sin(-2*np.pi/3),
     ]
     f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
@@ -458,11 +480,11 @@ if __name__ == "__main__":
     # the code that creates the mesh file
     # old_edge_coords = getInitialEdgeCoords()
     
-    problem = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
+    problem = MotorFEA(mesh_file="mesh_files/motor_mesh_new_1", i_abc=i_abc, 
                             old_edge_coords=old_edge_coords)
     
     problem.edge_deltas = edge_deltas
-    problem.solveMeshMotion(report=True)
+    # problem.solveMeshMotion(report=True)
 #    plt.figure(1)
 #    problem.moveMesh(problem.uhat)
 #    plot(problem.mesh)
@@ -470,10 +492,10 @@ if __name__ == "__main__":
 
     problem.solveMagnetostatic(report=True)
 #    problem.calcWindingAzDerivatives()
-#    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
-#    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
-#    vtkfile_A_z << problem.A_z
-#    vtkfile_B << problem.B
+    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
+    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
+    vtkfile_A_z << problem.A_z
+    vtkfile_B << problem.B
 
 #    
 #    ###### Test the average calculation for the flux linkage
