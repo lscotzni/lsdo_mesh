@@ -84,6 +84,7 @@ class MotorFEA(object):
         """
         self.V = FunctionSpace(self.mesh, 'P', 1)
         self.VHAT = VectorFunctionSpace(self.mesh, 'P', 1)
+        self.V0 = FunctionSpace(self.mesh, 'DG', 0)
 
     def locateMeshMotion(self,old_edge_coords):
         """
@@ -225,6 +226,89 @@ class MotorFEA(object):
                 dMAduhat.get_local(), 
                 dSAduhat.get_local())
     
+#    def calcMaxFluxDensity(self):
+#        B_l2_func = project(self.gradA_z[0]**2+self.gradA_z[1]**2, self.V0)
+#        file = File("B.pvd")
+#        file << self.B
+#        file = File("B_l2.pvd")
+#        file << B_l2_func
+#        max_cell = np.argmax(B_l2_func.vector()[:])
+#        max_vertice = self.V.dofmap().cell_dofs(max_cell)
+#        x0 = self.V0.tabulate_dof_coordinates()
+#        max_coords = x0[max_cell]
+#        x1 = self.V.tabulate_dof_coordinates()
+#        max_coords_1 = x1[max_vertice]
+#        max_B_l2 = max(B_l2_func.vector())
+#        print("Maximum of L2 norm of B: \n", "B_max =", max_B_l2, "at", max_cell)
+#        return max_B_l2, max_cell, max_vertice
+        
+    def extractFluxDensityDerivatives(self):
+        B_l2_form = (self.gradA_z[0]**2+self.gradA_z[1]**2)*self.dx
+        self.B_l2 = assemble(B_l2_form)
+        print("B_l2: ", self.B_l2)
+        dB_l2_dA = derivative(B_l2_form, self.A_z)
+        dB_l2_dA_p = assemble(dB_l2_dA)
+        print("dB_l2_dA_z: ")
+        return dB_l2_dA_p.get_local()
+    
+    
+    def getPointCoords(self, radius=0.05):
+        num_stator = 36
+        a = 2*pi/num_stator*np.arange(36)
+        x = np.zeros((num_stator,2))
+        x[:,0] = radius*np.cos(a)
+        x[:,1] = radius*np.sin(a)
+        return x
+    
+    def evalPointAz(self, points):
+        num_pt = np.shape(points)[0]
+        A_p = np.zeros(num_pt)
+        for i in range(num_pt):
+            A_p[i] = self.A_z(points[i])
+        return A_p
+        
+#            
+#        # NOTES FOR RU:
+#        # NECESSARY OUTPUTS ARE:
+#        #   - self.winding_delta_A_z
+#        #   - self.winding_area
+#        #   - self.magnet_area
+#        #   - self.steel_area
+
+    def getPointEvalDerivatives(self, points):
+        """
+        Compute derivatives of a point evaluation wrt to the function
+        ----------
+        points: Numpy array for the point coordinates
+        u: DOLFIN function
+        """
+        # Find the cell with point
+        num_pts = np.shape(points)[0]
+        row_ind = []
+        col_ind = []
+        data = []
+        for i in range(num_pts):
+            x = points[i]
+            x_point = Point(*x) 
+            cell_id = self.mesh.bounding_box_tree().compute_first_entity_collision(x_point)
+            cell = Cell(self.mesh, cell_id)
+            vertex_dofs = self.V.dofmap().cell_dofs(cell_id)
+            coordinate_dofs = np.array(cell.get_vertex_coordinates())
+            # Evaluate the basis function at the point
+            basis_func = self.V.element().evaluate_basis_all(
+                                x, coordinate_dofs, cell.orientation())
+            dofs = self.A_z.vector()[vertex_dofs]
+            row_ind.append(i*np.ones(3)) # tri-3 element
+            col_ind.append(vertex_dofs)
+            data.append(basis_func)
+            
+        row = np.concatenate(row_ind, axis=None)
+        col = np.concatenate(col_ind, axis=None)
+        val = np.concatenate(data, axis=None)
+        M = csr_matrix((val, (row, col)),
+                        shape=(num_pts, self.total_dofs_A_z))
+        return M
+
     def fluxLinkage(self):
         theta_t         = 2.0 * np.pi / self.s # VALUE DOES NOT CHANGE WITH OPTIMIZATION ITERATIONS
         theta_air_gap   = [theta_t/2. + theta_t*i for i in range(self.s)]
@@ -364,8 +448,14 @@ class MotorFEA(object):
         solver_ms.parameters['snes_solver']['error_on_nonconvergence'] = False
         solver_ms.parameters['snes_solver']['report'] = report
         solver_ms.solve()
-        self.B = project(as_vector((self.A_z.dx(1),-self.A_z.dx(0))),
-                        VectorFunctionSpace(self.mesh,'DG',0))
+        self.gradA_z = gradx(self.A_z, self.uhat)
+        self.B = project(as_vector((self.gradA_z[1], -self.gradA_z[0])),
+                            VectorFunctionSpace(self.mesh,'DG',0))
+        self.winding_delta_A_z = np.array(
+                                self.extractSubdomainAverageA_z(    
+                                     func=self.A_z,
+                                     subdomain_range=self.winding_range
+                                )[1])
 
         self.calcArea_FLOAT()
         self.winding_A_z = np.array(
@@ -373,45 +463,6 @@ class MotorFEA(object):
         )
         self.fluxLinkage()
 
-        self.winding_delta_A_z = np.array(
-         self.extractSubdomainAverageA_z(
-             func=self.A_z,
-             subdomain_range=self.winding_range
-        )[1])
-
-    # TODO
-    def calcWindingAz(self):
-        winding_A_z = []
-        for subdomain in self.winding_range:
-            winding_A_z.append(
-                self.getFuncAverageSubdomain(self.A_z, subdomain)
-            )
-        return winding_A_z
-    
-    # TODO
-    def calcWindingAzDerivatives(self):
-        dAz = []
-        duhat = []
-        for subdomain in self.winding_range:
-            func_integral_form = self.funcIntegralForm(self.A_z, subdomain)
-            area_form = self.areaForm(subdomain)
-            func_integral_i = assemble(func_integral_form)
-            area_i = assemble(area_form)
-            dAz_i = 1/area_i*assemble(derivative(func_integral_form, self.A_z))
-            
-            # quotient rule for derivatives; Nu: numerator, De: denominator
-            dNudu = assemble(derivative(func_integral_form, self.uhat))
-            dDedu = assemble(derivative(area_form, self.uhat))
-            
-            duhat_i = (area_i*dNudu + func_integral_i*dDedu)/area_i**2
-            
-            
-        # NOTES FOR RU:
-        # NECESSARY OUTPUTS ARE:
-        #   - self.winding_delta_A_z
-        #   - self.winding_area
-        #   - self.magnet_area
-        #   - self.steel_area
 
 
     def solveLinearFwd(self, A, dR):
@@ -479,23 +530,48 @@ if __name__ == "__main__":
     # One-time computation for the initial edge coordinates from
     # the code that creates the mesh file
     # old_edge_coords = getInitialEdgeCoords()
-    
-    problem = MotorFEA(mesh_file="mesh_files/motor_mesh_new_1", i_abc=i_abc, 
+    num_stator = 36
+    R = 0.05
+    a = 2*pi/num_stator*np.arange(36)
+    x = R*np.cos(a)
+    y = R*np.sin(a)
+    problem = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
                             old_edge_coords=old_edge_coords)
     
-    problem.edge_deltas = edge_deltas
-    # problem.solveMeshMotion(report=True)
+    problem.edge_deltas = 0.1*edge_deltas
+#    points = np.array([[0.033,0.055],[-0.05,-0.05]])
+    points = problem.getPointCoords()
+    problem.solveMagnetostatic(report=False)
+#    M = problem.getPointEvalDerivatives(points)
+#    print(M.dot(problem.A_z.vector().get_local()))
+#    print(problem.A_z(0.033,0.055), problem.A_z(-0.05,-0.05))
 #    plt.figure(1)
-#    problem.moveMesh(problem.uhat)
-#    plot(problem.mesh)
+#    plot(problem.A_z)
 #    plt.show()
+    print(problem.extractFluxDensityDerivatives())
+    problem.solveMeshMotion(report=False)
+#    plt.figure(1)
+#    plot(problem.mesh)
+#    plt.plot(x,y,'r+')
+#    plt.show()
+    
 
-    problem.solveMagnetostatic(report=True)
-#    problem.calcWindingAzDerivatives()
-    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
-    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
-    vtkfile_A_z << problem.A_z
-    vtkfile_B << problem.B
+    problem.solveMagnetostatic(report=False)
+#    M = problem.getPointEvalDerivatives(points)
+#    print(M.dot(problem.A_z.vector().get_local()))
+    print(problem.extractFluxDensityDerivatives())
+#    plt.figure(2)
+#    plot(problem.A_z)
+#    plt.show()
+#    
+
+#    print(m2p(assemble(dB_l2_dA)).getSizes())
+#    print(problem.A_z(0.033,0.055), problem.A_z(-0.05,-0.05))
+    
+#    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
+#    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
+#    vtkfile_A_z << problem.A_z
+#    vtkfile_B << problem.B
 
 #    
 #    ###### Test the average calculation for the flux linkage
@@ -528,16 +604,16 @@ if __name__ == "__main__":
 #    #     print("Area of Stator Winding"+str(ind))
 #    #     print(problem.getSubdomainArea(subdomain=i+1))
 #    
-    plt.figure(1)
-    plt1 = plot(problem.A_z)
-    plt.colorbar(plt1)
-    # plot(problem.B, linewidth=40)
-    # ALE.move(problem.mesh, problem.uhat)
-    # plot(problem.mesh)
-    # print(problem.A_z.vector().get_local()[:10])
+#    plt.figure(1)
+#    plt1 = plot(problem.A_z)
+#    plt.colorbar(plt1)
+#    # plot(problem.B, linewidth=40)
+#    # ALE.move(problem.mesh, problem.uhat)
+#    # plot(problem.mesh)
+#    # print(problem.A_z.vector().get_local()[:10])
 
-    plt.figure(2)
-    plt2 = plot(problem.B)
-    plt.colorbar(plt2)
+#    plt.figure(2)
+#    plt2 = plot(problem.B)
+#    plt.colorbar(plt2)
 
-    plt.show()
+#    plt.show()
