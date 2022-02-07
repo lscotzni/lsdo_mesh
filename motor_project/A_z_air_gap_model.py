@@ -72,8 +72,10 @@ if __name__ == "__main__":
     fea = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
                             old_edge_coords=old_edge_coords)
     fea.edge_deltas = 0.1*edge_deltas
-    fea.A_z_air_gap_indices = np.array([1,3,5,7,9])
-    
+    # fea.A_z_air_gap_indices = np.array([1,3,5,7,9])
+    air_gap_indices         = np.arange(1,144,4)
+    fea.A_z_air_gap_indices     = air_gap_indices
+   
     sim = Simulator(AzAirGapModel(fea=fea))
     from matplotlib import pyplot as plt
     print("CSDL: Running the model...")
@@ -85,6 +87,10 @@ if __name__ == "__main__":
     print("Nodal evaluations of A_z in the air gap:")
     print("- "*30)
     print(sim['A_z_air_gap'])
+    print('length of A_z_air_gap: ',len(sim['A_z_air_gap']))
+
+    print(air_gap_indices)
+    print(len(air_gap_indices))
     
     print("CSDL: Running check_partials()...")
     sim.check_partials()

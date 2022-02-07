@@ -9,6 +9,12 @@ from post_processing_dir.flux_linkage_model import FluxLinkageModel
 from post_processing_dir.electrical_model import ElectricalModel
 from post_processing_dir.power_loss_model import PowerLossModel
 from post_processing_dir.mass_model import MassModel
+from post_processing_dir.vector_potential_model import VectorPotentialModel
+
+
+from B_rms_2_model import Brms2Model
+from A_z_air_gap_model import AzAirGapModel
+from area_model import AreaModel
 
 from motor_fea import *
 
@@ -30,25 +36,39 @@ class PostProcessingModel(Model):
         self.parameters.declare('magnet_area')
         self.parameters.declare('steel_area')
         self.parameters.declare('phase_current_dq')
+        self.parameters.declare('fea')
+        self.parameters.declare('frequency')
 
     def define(self):
-        winding_delta_A_z   = self.parameters['winding_delta_A_z']
-        winding_area        = self.parameters['winding_area']
+        # winding_delta_A_z   = self.parameters['winding_delta_A_z']
+        # winding_area        = self.parameters['winding_area']
+        # magnet_area         = self.parameters['magnet_area']
+        # steel_area          = self.parameters['steel_area']
+
         motor_length        = self.parameters['motor_length']
         omega               = self.parameters['omega']
-        magnet_area         = self.parameters['magnet_area']
-        steel_area          = self.parameters['steel_area']
+        frequency           = self.parameters['frequency']
         phase_current_dq    = self.parameters['phase_current_dq']
+        fea                 = self.parameters['fea']
 
-        winding_delta_A_z   = self.declare_variable(
-            name='winding_delta_A_z',
-            val=winding_delta_A_z,
-            shape=(36,)
-        )
-        winding_area        = self.declare_variable(
-            name='winding_area',
-            val=winding_area
-        )
+        # winding_delta_A_z   = self.declare_variable(
+        #     name='winding_delta_A_z',
+        #     val=winding_delta_A_z,
+        #     shape=(36,)
+        # )
+        # winding_area        = self.declare_variable(
+        #     name='winding_area',
+        #     val=winding_area
+        # )
+        # magnet_area         = self.declare_variable(
+        #     name='magnet_area',
+        #     val=magnet_area
+        # )
+        # steel_area          = self.declare_variable(
+        #     name='steel_area',
+        #     val=steel_area
+        # )
+
         motor_length        = self.declare_variable(
             name='motor_length',
             val=motor_length
@@ -57,14 +77,12 @@ class PostProcessingModel(Model):
             name='omega',
             val=omega
         )
-        magnet_area         = self.declare_variable(
-            name='magnet_area',
-            val=magnet_area
+
+        frequency           = self.declare_variable(
+            name='frequency',
+            val=frequency
         )
-        steel_area          = self.declare_variable(
-            name='steel_area',
-            val=steel_area
-        )
+
         phase_current_dq    = self.declare_variable(
             name='phase_current_dq',
             val=phase_current_dq,
@@ -78,7 +96,15 @@ class PostProcessingModel(Model):
 
         num_windings = self.declare_variable(name='num_windings', shape=(1,), val=13.)
         
-        flux_linkage_model  = self.add(FluxLinkageModel(), name='flux_linkage_model')
+        # RU'S FEniCS MODELS
+
+        area_model          = self.add(AreaModel(fea=fea), name='area_model')
+        B_rms_2_model       = self.add(Brms2Model(fea=fea), name='B_rms_2_model')
+        A_z_air_gap_model   = self.add(AzAirGapModel(fea=fea), name='A_z_air_gap_model')
+
+        # SIMPLE P-P MODELS
+
+        vector_pot_model    = self.add(VectorPotentialModel(), name='vector_pot_model')
         electrical_model    = self.add(ElectricalModel(), name='electrical_model')
         power_loss_model    = self.add(PowerLossModel(), name='power_loss_model')
         efficiency_model    = self.add(EfficiencyModel(), name='efficiency_model')
@@ -89,10 +115,10 @@ class PostProcessingModel(Model):
 if __name__ ==  '__main__':
     t_start             = time.time()
     # rpm                 = 5000
-    rpm_list            = np.arange(1000, 6000 + 1, 500)
+    # rpm_list            = np.arange(1000, 6000 + 1, 500)
     # current_list        = np.arange(50, 300 + 1, 50)
-    # current_list        = np.array([200, 300])
     current_list        = np.array([200])
+    rpm_list            = np.array([1000])
     p                   = 12
     t                   = 0
     motor_length        = 70.e-3
@@ -124,6 +150,8 @@ if __name__ ==  '__main__':
 
         fea = MotorFEA(mesh_file="mesh_files/motor_mesh_new_1", i_abc=i_abc, 
                             old_edge_coords=old_edge_coords)
+        air_gap_indices         = np.arange(1,144,4)
+        fea.A_z_air_gap_indices = air_gap_indices
         fea.solveMagnetostatic()
 
         # A_z_air_gap         = fea.A_z_air_gap
@@ -143,14 +171,22 @@ if __name__ ==  '__main__':
             omega               = rpm * 2 * np.pi / 60.
             freq                = rpm * p / 120.
 
+            # aaa = PostProcessingModel(
+            #     winding_delta_A_z=A_z_air_gap_delta,
+            #     motor_length=motor_length,
+            #     omega=omega,
+            #     winding_area=winding_area,
+            #     magnet_area=magnet_area,
+            #     steel_area=steel_area,
+            #     phase_current_dq=i_dq,
+            # )
+
             aaa = PostProcessingModel(
-                winding_delta_A_z=A_z_air_gap_delta,
                 motor_length=motor_length,
                 omega=omega,
-                winding_area=winding_area,
-                magnet_area=magnet_area,
-                steel_area=steel_area,
                 phase_current_dq=i_dq,
+                fea=fea,
+                frequency=f
             )
 
             sim = Simulator(aaa)
@@ -177,7 +213,7 @@ if __name__ ==  '__main__':
 
         torque_array[n] = sim['output_torque']
 
-
+    # sim.visualize_implementation()
     xx, yy = np.meshgrid(rpm_list, current_list)
     contour_levels =  np.arange(70, 110  + 1, 10)
 

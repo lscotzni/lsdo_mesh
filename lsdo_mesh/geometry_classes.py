@@ -69,7 +69,11 @@ class Mesh(object):
         # length of above variable is equal to number of rotation instances
         self.ffd_cp_instances       = []
         self.edge_nodes_instances   = []
-        self.gmsh_order_point_coords_instances = []
+        self.gmsh_order_point_coords_instances  = []
+
+        # variables below are for point indices stored 
+        self.points_for_node_extraction         = []
+        self.extracted_node_instances           = []
 
     # --------------------- GEOMETRY/MESH ---------------------
     def add_entity(self, entity=None):
@@ -262,7 +266,6 @@ class Mesh(object):
         for i in range(len(self.rotation_angles) - 1):
             print(self.ffd_cp_instances[i+1] - self.ffd_cp_instances[i])
 
-        # exit()
 
     # --------------------- ASSEMBLE ---------------------
     def assemble(self, coordinate_system='cartesian'):
@@ -531,14 +534,27 @@ class Mesh(object):
 
             # ------------------------ GETTING POINT INFORMATION ------------------------
             # Getting point entities and appending the point instances to a global array
-            self.gmsh_point_entities = gmsh.model.getEntities(0) # of the form (0, i)
+            self.gmsh_point_entities    = gmsh.model.getEntities(0) # of the form (0, i)
             self.mesh_points_instances.append(np.array(
                 self.reorder_points_to_gmsh(coordinate_system=coordinate_system)[0][:,:2].reshape((self.num_points * 2, ))
             ))
             self.gmsh_order_point_coords_instances.append(np.array(
                 self.reorder_points_to_gmsh(coordinate_system='cartesian')[0]
             ))
-            # We need edge and point information for each mesh because of how parametrization/arctan2 works around pi                
+            # We need edge and point information for each mesh because of how parametrization/arctan2 works around pi
+            # 
+            if self.points_for_node_extraction: # ONLY WANT IF USER CALLS self.get_node_indices & ADDS POINTS
+                self.gmsh_point_nodes           = gmsh.model.mesh.getNodes(dim=0) # node information for POINTS; only needed in this case
+                extracted_point_node_indices    = self.extract_point_node_indices(self.points_for_node_extraction)
+                self.extracted_node_instances.append(extracted_point_node_indices)
+
+                
+            # print(self.mesh_points_instances[a])  
+            # print(self.gmsh_order_point_coords_instances[a]) 
+            print(gmsh.model.mesh.getNodes(dim=0, tag=1)[0])
+            print(gmsh.model.mesh.getNodes(dim=0, tag=1)[1])
+            print(extracted_point_node_indices)
+            print('number of extracted nodes: ', len(extracted_point_node_indices))
             
             # ------------------------ GETTING CURVE INFORMATION ------------------------
             self.gmsh_curve_entities = gmsh.model.getEntities(1) # of the form (1, i)
@@ -568,8 +584,6 @@ class Mesh(object):
                     info = gmsh.model.mesh.getNodes(dim=1, tag = curve[1], includeBoundary=True, returnParametricCoord=False)
                     self.edge_node_indices.append(info[0]) # the node indices along an edge; last two are the start and end nodes
             
-                    
-
             print('---')
             # print(gmsh.model.mesh.getNodes(dim=1, includeBoundary=True, returnParametricCoord=False)[1])
             aaa.append(gmsh.model.mesh.getNodes(dim=1, includeBoundary=True, returnParametricCoord=False)[0])
@@ -660,11 +674,10 @@ class Mesh(object):
         )
         print(self.shape_param_sps_mat.toarray())
         print(self.shape_param_sps_mat.toarray().shape)
-        print(shape_parameter_list)
-        print(axis_list)
-        print(parameter_type_list)
-        print(parameter_index_list)
-        exit()
+        print(self.shape_parameter_list)
+        print(self.axis_list)
+        print(self.parameter_type_list)
+        print(self.parameter_index_list)
         
     def assemble_ffd_parametrization_new(self, coordinate_system='cartesian'):
         
@@ -758,7 +771,6 @@ class Mesh(object):
         # print(self.ffd_face_sps_mat)
         # print(self.ffd_face_sps_mat.toarray())
         # print(self.ffd_face_sps_mat.toarray().shape)
-        # exit()
         orig_points = self.ffd_face_sps_mat.dot(self.ffd_face_control_pts) # check for whether FFD faces return original points
         # asdf  = self.ffd_face_sps_mat.dot(self.ffd_cp_instances[1]) 
         # asdf  = self.ffd_face_sps_mat_list[1].dot(self.ffd_cp_instances[1]) 
@@ -772,7 +784,6 @@ class Mesh(object):
         # print(asdf - orig_points) # entries here should return rotation angle (in radians)
         # # print(np.where(orig_points))
         # print(np.where(asdf - orig_points))
-        # exit()
     
     def assemble_ffd_parametrization(self, coordinate_system='cartesian'):
         
@@ -1037,7 +1048,6 @@ class Mesh(object):
         for i in range(len(self.rotation_angles)):
             self.mesh_model.append(
                 MeshModel(
-                    shape_parametrization   = self.shape_param_sps_mat,
                     ffd_parametrization     = self.ffd_face_sps_mat_list[i],
                     edge_parametrization    = self.edge_param_sps_mat_list[i],
                     mesh_points             = self.mesh_points_instances[i],
@@ -1049,6 +1059,29 @@ class Mesh(object):
         return self.mesh_model
    
     # --------------------- MISCELLANEOUS ---------------------
+    def extract_point_node_indices(self, points): # called during GMSH operations in assemble_mesh
+        tol = 1e-6
+        extracted_point_node_indices    = []
+
+        gmsh_point_node_indices         = self.gmsh_point_nodes[0]
+        gmsh_point_node_coords          = self.gmsh_point_nodes[1] # VECTORIZED LIKE [X0 Y0 Z0 X1 Y1 Z1 ...]
+
+        for point in points:
+            point_coordinate   = point.return_coordinates()[:3]
+            print('point_coordinate: ', point_coordinate)
+            # implement search method via point coordinates and np.linalg.norm()
+            # search within gmsh.model.mesh.getNodes
+            for i, node in enumerate(gmsh_point_node_indices):
+                diff   = np.array(point_coordinate) - np.array(gmsh_point_node_coords[3*i:3*i+3])
+                if np.linalg.norm(diff) < tol:
+                    extracted_point_node_indices.append(node)
+                    break # only breaks out of inner loop; no duplicates so we only need condition satisfied once
+        
+        if self.point_node_indices_to_file: # if this is True, self.point_node_indices_to_file is a name-string for the file
+            np.savetxt(self.point_node_indices_to_file + '.txt', extracted_point_node_indices, fmt='%3i')
+
+        return extracted_point_node_indices
+
     def get_coordinates(self, coord_sys='cartesian'):
         num_pts = len(self.point_coordinates)
         
@@ -1064,7 +1097,17 @@ class Mesh(object):
         # self.mesh_nodes  = self.mesh_nodes.reshape((num_pts * 2,))
         return self.mesh_nodes
 
-    def reorder_points_to_gmsh(self, coordinate_system='cartesian'): # don't think I need this
+    def get_node_indices(self, points, print_to_file=False): # print_to_file is the file name without extension
+        self.point_node_indices_to_file = False
+        if print_to_file:
+            self.point_node_indices_to_file = print_to_file
+
+        if not all([isinstance(point, Point) for point in points]):
+            raise TypeError('Variables must all be points.')
+        for point in points:
+            self.points_for_node_extraction.append(point)
+
+    def reorder_points_to_gmsh(self, coordinate_system='cartesian'):
         # need to reorder points and edges to align with the final result from gmsh
         # POINTS
         # for points use self.point_coordinates and reorder them

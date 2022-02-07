@@ -38,10 +38,7 @@ class ElectricalModel(Model): # could also call Battery Model?
         # flux_linkage_abc[1] = flux_linkage_b_i * motor_length
         # flux_linkage_abc[2] = flux_linkage_c_i * motor_length
         
-        # wire_resistance = self.create_input(name='wire_resistance')
-        # wire_resistance = 1.68e-8 * motor_length / (winding_area/39) * 72
-        # wire_resistance = 1.68e-8 * motor_length / (winding_area/39) * 18
-        wire_resistance = 1.68e-8 * motor_length / (winding_area*0.65/num_windings) * 36 * num_windings
+        wire_resistance = 1.68e-8 * motor_length / (winding_area * 0.6) * 12. # on a per-phase basis
         wire_resistance = self.register_output(
             name='wire_resistance',
             var = wire_resistance

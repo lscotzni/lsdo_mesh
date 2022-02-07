@@ -74,7 +74,7 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     RS          = (Rsy+Rout)/2 # # Midpoint to cut air-gap mesh in Stator
 
     rho         = rotation_angles
-    m           = lm.Mesh(name=file_name, popup=False, rotation_angles=rho)
+    m           = lm.Mesh(name=file_name, popup=True, rotation_angles=rho)
 
     # NOTE: need to fix implementation; the process does not like lists
     # as inputs, but the option to do so makes things easier (especially 
@@ -479,8 +479,6 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     Magnets:                                    5 + 2*p + i,        i = 0:(p-1)
     Right Stator Windings:                      5 + 3*p + 2*i,      i = 0:(s-1)
     Left Stator Windings:                       5 + 3*p + 2*i  + 1  i = 0:(s-1)
-
-
     '''
     # asdf = []
     # asdf.append(air_gap)
@@ -608,6 +606,8 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     # m.add_face(Ru_test_def_ffd)
 
     m.add_all_entities_to_physical_group('curves')
+
+    m.get_node_indices(stator_inner_surface_4_p, print_to_file='A_z_stator_indices') # Getting node indices out for FLUX LINKAGE
 
     m.assemble(coordinate_system='polar')
 

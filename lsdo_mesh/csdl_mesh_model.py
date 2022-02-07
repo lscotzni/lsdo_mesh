@@ -99,7 +99,7 @@ class ShapeParameterModel(Model):
 
     def define(self):
         shape_parameter_list_input          = self.parameters['shape_parameter_list_input']
-        shape_parameter_index_input          = self.parameters['shape_parameter_index_input']
+        shape_parameter_index_input         = self.parameters['shape_parameter_index_input']
         shape_parametrization               = self.parameters['shape_parametrization']
         # the shape parameter list is coming directly from lsdo_mesh; the user will define the DVs and SPs and connect them,
         # and in here we need to add the SPs as variables and concatenate into a large list looping through the list
