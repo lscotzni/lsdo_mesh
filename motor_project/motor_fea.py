@@ -231,19 +231,20 @@ class MotorFEA(object):
                 dSAduhat.get_local())
 
 
-    def B_power_form(self, n, subdomain_id):
+    def B_power_form(self, n, subdomains):
+        B_power_form = 0.
         B_magnitude = sqrt(self.gradA_z[0]**2+self.gradA_z[1]**2)
-        B_power_form = pow(B_magnitude, n)*J(self.uhat)*self.dx(subdomain_id)
+        for subdomain_id in subdomains:
+            B_power_form += pow(B_magnitude, n)*J(self.uhat)*self.dx(subdomain_id)
         return B_power_form
-        
+    
+    
     def calcFluxDensityPowerProduct(self, n=2, subdomains=[1,2]):
         """
         Compute integral of pow(B,n)*dx over the subdomain
         """
-        integral = []
-        for subdomain_id in subdomains:
-            B_power_n_form = self.B_power_form(n,subdomain_id)
-            integral.append(assemble(B_power_n_form))
+        B_power_n_form = self.B_power_form(n,subdomains)
+        integral = assemble(B_power_n_form)
         return integral
 
 #    def calcFluxDensityPowerProduct(self, n=2, subdomain=[1,2]):
@@ -257,16 +258,12 @@ class MotorFEA(object):
 #        return avg_B_power_n
     
     def calcFluxDensityPowerProductDerivatives(self, n=2, subdomains=[1,2]):
-        M_dFdAz = np.zeros((len(subdomains), self.total_dofs_A_z))
-        M_dFduhat = np.zeros((len(subdomains), self.total_dofs_uhat))
-        for i in range(len(subdomains)):
-            subdomain_id = subdomains[i]
-            F = self.B_power_form(n,subdomain_id)
-            dFdAz = derivative(F, self.A_z)
-            M_dFdAz[i][:] = assemble(dFdAz).get_local()
-            dFduhat = derivative(F, self.uhat)
-            M_dFduhat[i][:] = assemble(dFduhat).get_local()
-        return M_dFdAz, M_dFduhat
+        F = self.B_power_form(n,subdomains)
+        dFdAz = derivative(F, self.A_z)
+        dFdAz_array = assemble(dFdAz).get_local()
+        dFduhat = derivative(F, self.uhat)
+        dFduhat_array = assemble(dFduhat).get_local()
+        return dFdAz_array, dFduhat_array
         
     def extractAzAirGap(self, indices=None):
         if indices is None:
