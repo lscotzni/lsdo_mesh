@@ -57,7 +57,6 @@ class MotorFEA(object):
         # Partial derivatives in the mesh motion subproblem
         self.dRm_duhat = derivative(self.resM(), self.uhat)
         
-        #TODO
         self.A_z_air_gap_indices = None
 
     def initMesh(self):
@@ -76,7 +75,11 @@ class MotorFEA(object):
         self.magnet_id = [29,]
         self.steel_id = [1,2,3]
         self.winding_range = range(41,76+1)
-
+        
+        # Subdomains for calculating power losses
+        self.ec_loss_subdomain = [1,2,] # rotor and stator core
+        self.hysteresis_loss_subdomain = [1,2,]
+        self.pm_loss_subdomain = range(29, 40+1)
 
     def initFunctionSpace(self):
         """
@@ -182,26 +185,11 @@ class MotorFEA(object):
         avg_func = integral/area
         return avg_func
 
-    def extractSubdomainAverageA_z(self, func, subdomain_range):
-        """
-        Get averaged function values over a range of subdomains and 
-        the differences between the average values of two neighboring
-        subdomains
-        """
-        subdomain_avg_A_z = []
-        subdomain_avg_A_z_deltas = []
-        # winding_start, winding_end = 41, 112
-        for subdomain in subdomain_range:
-            subdomain_avg_A_z.append(
-                self.getFuncAverageSubdomain(func, subdomain)
-            )
-        for i in range(int(len(subdomain_range)/2)):
-            subdomain_avg_A_z_deltas.append(
-                abs(subdomain_avg_A_z[2*i] - subdomain_avg_A_z[2*i+1])
-            )
-        return subdomain_avg_A_z, subdomain_avg_A_z_deltas
     
     def calcAreas(self):
+        """
+        Compute the areas of pre-defined subdomains
+        """
         self.winding_area = self.getSubdomainArea(self.winding_id)
         self.magnet_area = self.getSubdomainArea(self.magnet_id)
         self.steel_area = self.getSubdomainArea(self.steel_id)
@@ -210,15 +198,12 @@ class MotorFEA(object):
                 assemble(self.magnet_area), 
                 assemble(self.steel_area))
 
-    def calcArea_FLOAT(self):
-        func_unit = interpolate(Constant(1.0), self.A_z.function_space())
-        self.winding_area_FLOAT = assemble(inner(func_unit, func_unit) * self.dx((self.winding_id[0])))
-        self.magnet_area_FLOAT = assemble(inner(func_unit, func_unit) * self.dx((self.magnet_id[0])))
-        self.steel_area_FLOAT = sum(
-            [assemble(inner(func_unit, func_unit) * self.dx((steel_id))) for steel_id in self.steel_id]
-        )
 
     def calcAreaDerivatives(self):
+        """
+        Calculate the partial derivatives of the areas with respect to
+        the mesh motion
+        """
         dWAduhat = assemble(derivative(self.winding_area, self.uhat))
         dMAduhat = assemble(derivative(self.magnet_area, self.uhat))
         dSAduhat = assemble(derivative(self.steel_area, self.uhat))
@@ -226,23 +211,60 @@ class MotorFEA(object):
         return (dWAduhat.get_local(), 
                 dMAduhat.get_local(), 
                 dSAduhat.get_local())
+
+
+    def B_power_form(self, n, subdomains):
+        """
+        Return the ufl form of `B**n*dx(subdomains)`
+        """
+        B_power_form = 0.
+        B_magnitude = sqrt(self.gradA_z[0]**2+self.gradA_z[1]**2)
+        for subdomain_id in subdomains:
+            B_power_form += pow(B_magnitude, n)*J(self.uhat)*self.dx(subdomain_id)
+        return B_power_form
     
-    def extractFluxDensity(self):
-        self.B_rms_2_form = (self.gradA_z[0]**2+self.gradA_z[1]**2)*self.dx
-        B_rms_2 = assemble(self.B_rms_2_form)
-        return B_rms_2
+    
+    def calcFluxInfluence(self, n=2, subdomains=[1,2]):
+        """
+        Assemble the flux density influence for the power losses
+        (`B**n*dx(subdomains)`) over the subdomains
+        """
+        B_power_n_form = self.B_power_form(n,subdomains)
+        integral = assemble(B_power_n_form)
+        return integral
+
+    
+    def calcFluxInfluenceDerivatives(self, n=2, subdomains=[1,2]):
+        """
+        Calculate the partial derivatives of the flux influence 
+        with respect to the magnetic vector potential `A_z` and 
+        mesh motion `uhat`
+        """
+        F = self.B_power_form(n,subdomains)
+        dFdAz = derivative(F, self.A_z)
+        dFdAz_array = assemble(dFdAz).get_local()
+        dFduhat = derivative(F, self.uhat)
+        dFduhat_array = assemble(dFduhat).get_local()
+        return dFdAz_array, dFduhat_array
         
-    def extractFluxDensityDerivatives(self):
-        dB_rms_2_dA = derivative(self.B_rms_2_form, self.A_z)
-        dB_rms_2_dA_p = assemble(dB_rms_2_dA)
-        return dB_rms_2_dA_p.get_local()
-    
+        
     def extractAzAirGap(self, indices=None):
+        """
+        Extract the point evaluations of the magenetic vector potential
+        `A_z` given the indices for the point locations
+        """
         if indices is None:
             indices = self.A_z_air_gap_indices
         return self.A_z.vector()[indices]
     
+    
     def extractAzAirGapDerivatives(self, indices=None):
+        """
+        Extract the Jacobian matrix of patrial derivatives of the point 
+        evaluations of `A_z` with respect to the function `A_z`, which is
+        a sparse matrix with ones filling the entries whose colume indices
+        are corresponding to the indices of the points
+        """
         if indices is None:
             indices = self.A_z_air_gap_indices
         n_eval = len(indices)
@@ -253,76 +275,6 @@ class MotorFEA(object):
                         shape=(n_eval, self.total_dofs_A_z))
         return M
         
-#    def getPointCoords(self, radius=0.05):
-#        num_stator = 36
-#        a = 2*pi/num_stator*np.arange(36)
-#        x = np.zeros((num_stator,2))
-#        x[:,0] = radius*np.cos(a)
-#        x[:,1] = radius*np.sin(a)
-#        return x
-#    
-#    def evalPointAz(self, points):
-#        num_pt = np.shape(points)[0]
-#        A_p = np.zeros(num_pt)
-#        for i in range(num_pt):
-#            A_p[i] = self.A_z(points[i])
-#        return A_p
-        
-#            
-#        # NOTES FOR RU:
-#        # NECESSARY OUTPUTS ARE:
-#        #   - self.winding_delta_A_z
-#        #   - self.winding_area
-#        #   - self.magnet_area
-#        #   - self.steel_area
-
-#    def getPointEvalDerivatives(self, points):
-#        """
-#        Compute derivatives of a point evaluation wrt to the function
-#        ----------
-#        points: Numpy array for the point coordinates
-#        u: DOLFIN function
-#        """
-#        # Find the cell with point
-#        num_pts = np.shape(points)[0]
-#        row_ind = []
-#        col_ind = []
-#        data = []
-#        for i in range(num_pts):
-#            x = points[i]
-#            x_point = Point(*x) 
-#            cell_id = self.mesh.bounding_box_tree().compute_first_entity_collision(x_point)
-#            cell = Cell(self.mesh, cell_id)
-#            vertex_dofs = self.V.dofmap().cell_dofs(cell_id)
-#            coordinate_dofs = np.array(cell.get_vertex_coordinates())
-#            # Evaluate the basis function at the point
-#            basis_func = self.V.element().evaluate_basis_all(
-#                                x, coordinate_dofs, cell.orientation())
-#            dofs = self.A_z.vector()[vertex_dofs]
-#            row_ind.append(i*np.ones(3)) # tri-3 element
-#            col_ind.append(vertex_dofs)
-#            data.append(basis_func)
-#            
-#        row = np.concatenate(row_ind, axis=None)
-#        col = np.concatenate(col_ind, axis=None)
-#        val = np.concatenate(data, axis=None)
-#        M = csr_matrix((val, (row, col)),
-#                        shape=(num_pts, self.total_dofs_A_z))
-#        return M
-
-    def fluxLinkage(self):
-        theta_t         = 2.0 * np.pi / self.s # VALUE DOES NOT CHANGE WITH OPTIMIZATION ITERATIONS
-        theta_air_gap   = [theta_t/2. + theta_t*i for i in range(self.s)]
-        Rr              = 80.e-3 # CHANGES WITH OPTIMIZATION ITERATIONS
-        Rs              = 81.e-3 # CHANGES WITH OPTIMIZATION ITERATIONS
-
-        air_gap_rad     = (Rr + Rs) / 2.
-        A_z_eval_loc    = [[
-            air_gap_rad * np.cos(theta),
-            air_gap_rad * np.sin(theta)
-        ] for theta in theta_air_gap]
-
-        self.A_z_air_gap     = [self.A_z(A_z_eval_loc[i][0], A_z_eval_loc[i][1]) for i in range(self.s)]
 
     def setBCMagnetostatic(self):
         """
@@ -452,18 +404,6 @@ class MotorFEA(object):
         self.gradA_z = gradx(self.A_z, self.uhat)
         self.B = project(as_vector((self.gradA_z[1], -self.gradA_z[0])),
                             VectorFunctionSpace(self.mesh,'DG',0))
-        self.winding_delta_A_z = np.array(
-                                self.extractSubdomainAverageA_z(    
-                                     func=self.A_z,
-                                     subdomain_range=self.winding_range
-                                )[1])
-
-        self.calcArea_FLOAT()
-        self.winding_A_z = np.array(
-            [self.getFuncAverageSubdomain(func=self.A_z, subdomain=subdomain) for subdomain in self.winding_range]
-        )
-        self.fluxLinkage()
-
 
 
     def solveLinearFwd(self, A, dR):
@@ -526,6 +466,11 @@ if __name__ == "__main__":
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
+
+    f = open('A_z_stator_indices.txt', 'r+')
+    A_z_stator_indices = np.fromstring(f.read(), dtype=float, sep=' ')
+    f.close()
+    
 #    print("Number of nonzero displacements:", np.count_nonzero(edge_deltas))
     
     # One-time computation for the initial edge coordinates from
@@ -541,69 +486,24 @@ if __name__ == "__main__":
     
     problem.edge_deltas = 0.1*edge_deltas
     problem.solveMagnetostatic(report=False)
-    ind = np.array([1, 3, 5, 7, 9]).astype(int)
-    print(type(problem.extractAzAirGap(ind)))
+    ind = A_z_stator_indices.astype(int)
     M = problem.extractAzAirGapDerivatives(ind)
-    print(M.todense())
-    """test B_rms_2"""
-#    print("B_rms_2: ", problem.extractFluxDensity())
-#    print("dB_rms_2_dA_z: ")
-#    print(problem.extractFluxDensityDerivatives())
-    problem.solveMeshMotion(report=False)
-#    plt.figure(1)
-#    plot(problem.mesh)
-#    plt.plot(x,y,'r+')
-#    plt.show()
-    
-
-    problem.solveMagnetostatic(report=False)
-
-#    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
-#    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
-#    vtkfile_A_z << problem.A_z
-#    vtkfile_B << problem.B
-
+#    problem.solveMeshMotion(report=False)
 #    
-#    ###### Test the average calculation for the flux linkage
-#    subdomain_range = range(41,112)
-#    asdf, deltas  = problem.extractSubdomainAverageA_z(
-#        func=problem.A_z,
-#        subdomain_range=subdomain_range
-#    )
-#    
-#    for i in range(len(subdomain_range)):
-#        print("Average A_z for subdomain "+str(i+41))
-##        print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+1))
-#        print(asdf[i])
 
-#    for i in range(len(deltas)):
-#        print("Delta A_z for Stator Tooth "+str(i+1))
-#        # print(problem.getFuncAverageSubdomain(func=problem.A_z, subdomain=i+1))
-#        print(deltas[i])
-#    print('------')
+#    problem.solveMagnetostatic(report=False)
+    print("for Eddy current loss:")
+    print(problem.calcFluxInfluence(n=2, subdomains=problem.ec_loss_subdomain))
+    problem.calcFluxInfluenceDerivatives(n=2, subdomains=problem.ec_loss_subdomain)
+    print("for Hysteresis loss:")
+    beta = 1.76835 # Material parameter for Hiperco 50
+    print(problem.calcFluxInfluence(n=beta,subdomains=problem.hysteresis_loss_subdomain))
+    print("for Permanent magnets loss:")                      
+    print(problem.calcFluxInfluence(n=2, subdomains=problem.pm_loss_subdomain))
+    problem.calcFluxInfluenceDerivatives(n=2, subdomains=problem.pm_loss_subdomain)
+    problem.moveMesh(problem.uhat)
+    vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
+    vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
+    vtkfile_A_z << problem.A_z
+    vtkfile_B << problem.B
 
-##    for i, ind in enumerate(subdomain_range):
-##        func=problem.A_z
-##        func_unit = interpolate(Constant(1.0), func.function_space())
-##        print("Area of Stator Winding "+str(ind))
-##        print(problem.getSubdomainArea(subdomain=ind))
-
-#    # for i, ind in enumerate(subdomain_range):
-#    #     func=problem.A_z
-#    #     func_unit = interpolate(Constant(1.0), func.function_space())
-#    #     print("Area of Stator Winding"+str(ind))
-#    #     print(problem.getSubdomainArea(subdomain=i+1))
-#    
-#    plt.figure(1)
-#    plt1 = plot(problem.A_z)
-#    plt.colorbar(plt1)
-#    # plot(problem.B, linewidth=40)
-#    # ALE.move(problem.mesh, problem.uhat)
-#    # plot(problem.mesh)
-#    # print(problem.A_z.vector().get_local()[:10])
-
-#    plt.figure(2)
-#    plt2 = plot(problem.B)
-#    plt.colorbar(plt2)
-
-#    plt.show()
