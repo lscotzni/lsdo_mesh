@@ -111,6 +111,19 @@ class MotorFEA(object):
 
         return edge_indices.astype('int')
 
+    def locateAzIndices(self,coords):
+        """
+        Find the indices of the dofs of A_z given point coordinates
+        """
+        coordinates = self.V.tabulate_dof_coordinates()
+
+        # Use KDTree to find the node indices of the points on the edge
+        # in the mesh object in FEniCS
+        node_indices = findNodeIndices(np.reshape(coords, (-1,2)),
+                                        coordinates)
+
+        return node_indices.astype('int')
+    
     def resM(self):
         """
         Formulation of mesh motion as a hyperelastic problem
@@ -466,11 +479,6 @@ if __name__ == "__main__":
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-
-    f = open('A_z_stator_indices.txt', 'r+')
-    A_z_stator_indices = np.fromstring(f.read(), dtype=float, sep=' ')
-    f.close()
-    
 #    print("Number of nonzero displacements:", np.count_nonzero(edge_deltas))
     
     # One-time computation for the initial edge coordinates from
@@ -486,12 +494,21 @@ if __name__ == "__main__":
     
     problem.edge_deltas = 0.1*edge_deltas
     problem.solveMagnetostatic(report=False)
-    ind = A_z_stator_indices.astype(int)
-    M = problem.extractAzAirGapDerivatives(ind)
-#    problem.solveMeshMotion(report=False)
-#    
+    
+    
 
+    f = open('A_z_air_gap_coords_1.txt', 'r+')
+    A_z_air_gap_coords = np.fromstring(f.read(), dtype=float, sep=' ')
+    f.close()
+    
+    problem.A_z_air_gap_indices = problem.locateAzIndices(A_z_air_gap_coords)
+    A_z_air_gap = problem.extractAzAirGap()
+    print(A_z_air_gap)
+    M = problem.extractAzAirGapDerivatives()
+    
+#    problem.solveMeshMotion(report=False)
 #    problem.solveMagnetostatic(report=False)
+    
     print("for Eddy current loss:")
     print(problem.calcFluxInfluence(n=2, subdomains=problem.ec_loss_subdomain))
     problem.calcFluxInfluenceDerivatives(n=2, subdomains=problem.ec_loss_subdomain)

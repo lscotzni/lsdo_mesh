@@ -7,7 +7,7 @@ import numpy as np
 from csdl_om import Simulator
 from motor_fea import *
 
-class AzAirGapModel(Model):
+class FluxInfluenceECModel(Model):
 
     def initialize(self):
         self.parameters.declare('fea')
@@ -15,44 +15,59 @@ class AzAirGapModel(Model):
     def define(self):
         self.fea = self.parameters['fea']
         self.input_size_A_z = self.fea.total_dofs_A_z
+        self.input_size_uhat = self.fea.total_dofs_uhat
         A_z = self.declare_variable('A_z',
                         shape=(self.input_size_A_z,),
                         val=0.0)
-        e = AzAirGap(fea=self.fea)
-        A_z_air_gap = csdl.custom(A_z, op=e)
-        self.register_output('A_z_air_gap', A_z_air_gap)
+        uhat = self.declare_variable('uhat',
+                        shape=(self.input_size_uhat,),
+                        val=0.0)
+        e = FluxInfluenceEC(fea=self.fea)
+        B_influence_hysteresis = csdl.custom(A_z, uhat, op=e)
+        self.register_output('B_influence_hysteresis', B_influence_hysteresis)
 
 
-class AzAirGap(CustomExplicitOperation):
+class FluxInfluenceEC(CustomExplicitOperation):
     """
-    input: A_z
-    output: nodal evaluations of A_z at the air gap
+    input: A_z, uhat
+    output: B_influence_hysteresis = B**2*dx(subdomains)
     """
     def initialize(self):
         self.parameters.declare('fea')
 
     def define(self):
         self.fea = self.parameters['fea']
+        # parameters for Eddy current loss
+        self.subdomains = self.fea.hysteresis_loss_subdomain
+        beta = 1.76835 # Material parameter for Hiperco 50
+        self.exponent = beta
+        
         self.input_size_A_z = self.fea.total_dofs_A_z
-        self.output_size = len(self.fea.A_z_air_gap_indices)
-        self.add_input('A_z',
+        self.input_size_uhat = self.fea.total_dofs_uhat
+        A_z = self.add_input('A_z',
                         shape=(self.input_size_A_z,),
                         val=0.0)
-        self.add_output('A_z_air_gap',
-                        shape=(self.output_size,),
+        uhat = self.add_input('uhat',
+                        shape=(self.input_size_uhat,),
                         val=0.0)
-        self.declare_derivatives('A_z_air_gap', 'A_z')
+        self.add_output('B_influence_hysteresis')
+        self.declare_derivatives('*', '*')
         
     def compute(self, inputs, outputs):
         update(self.fea.A_z, inputs['A_z'])
-        outputs['A_z_air_gap'] = self.fea.extractAzAirGap()
+        update(self.fea.uhat, inputs['uhat'])
+        B_influence_hysteresis = self.fea.calcFluxInfluence(
+                        n=self.exponent, subdomains=self.subdomains)
+        outputs['B_influence_hysteresis'] = B_influence_hysteresis
 
     def compute_derivatives(self, inputs, derivatives):
         update(self.fea.A_z, inputs['A_z'])
-        dA_ag_dA_z = self.fea.extractAzAirGapDerivatives()
-        derivatives['A_z_air_gap', 'A_z'] = dA_ag_dA_z.todense()
-
-                    
+        update(self.fea.uhat, inputs['uhat'])
+        dFdAz, dFduhat = self.fea.calcFluxInfluenceDerivatives(
+                        n=self.exponent, subdomains=self.subdomains)
+        derivatives['B_influence_hysteresis', 'A_z'] = dFdAz
+        derivatives['B_influence_hysteresis', 'uhat'] = dFduhat
+        
 if __name__ == "__main__":
     iq                  = 282.2 / 3
     i_abc               = [
@@ -68,30 +83,24 @@ if __name__ == "__main__":
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
     
-
     fea = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
                             old_edge_coords=old_edge_coords)
     fea.edge_deltas = 0.1*edge_deltas
-
-    f = open('A_z_air_gap_coords_1.txt', 'r+')
-    A_z_air_gap_coords = np.fromstring(f.read(), dtype=float, sep=' ')
-    f.close()
-    
-    fea.A_z_air_gap_indices = fea.locateAzIndices(A_z_air_gap_coords)
-   
-    sim = Simulator(AzAirGapModel(fea=fea))
+    sim = Simulator(FluxInfluenceECModel(fea=fea))
     from matplotlib import pyplot as plt
     print("CSDL: Running the model...")
-#    fea.solveMeshMotion()   
     fea.solveMagnetostatic()
     sim['A_z'] = fea.A_z.vector().get_local()
+    sim['uhat'] = fea.uhat.vector().get_local()
     sim.run()
-    print("- "*30)
-    print("Nodal evaluations of A_z in the air gap:")
-    print("- "*30)
-    print(sim['A_z_air_gap'])
-    print('length of A_z_air_gap: ',len(sim['A_z_air_gap']))
-
+    print(" B_influence_hysteresis =", sim['B_influence_hysteresis'])
+#    fea.solveMeshMotion()   
+#    fea.solveMagnetostatic()
+#    sim['A_z'] = fea.A_z.vector().get_local()
+#    sim['uhat'] = fea.uhat.vector().get_local()
+#    sim.run()
+#    print(" B_influence_hysteresis =", sim['B_influence_hysteresis'])
+    
     print("CSDL: Running check_partials()...")
     sim.check_partials()
 
