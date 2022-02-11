@@ -607,7 +607,8 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
 
     m.add_all_entities_to_physical_group('curves')
 
-    m.get_node_indices(stator_inner_surface_4_p, print_to_file='A_z_stator_indices') # Getting node indices out for FLUX LINKAGE
+    # m.get_node_indices(stator_inner_surface_4_p, print_to_file='A_z_stator_indices') # Getting node indices out for FLUX LINKAGE
+    m.get_node_coordinates(stator_inner_surface_4_p, print_to_file='A_z_stator_coords')
 
     m.assemble(coordinate_system='polar')
 
@@ -671,10 +672,6 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
 
 # NOTE-S:
 '''
-Incomplete tasks:
-- Curves for stator windings, magnets (& air gaps) and rotor-stator air gap
-- Surfaces for stator windings, magnets (& air gaps) and rotor-stator air gap
-- Boolean operations for stator windings, magnets (& air gaps) and rotor-stator air gap
 
 ERRORS:
 - if we try to apply boolean subtraction with a coincident boundary after a geometry 

@@ -72,8 +72,14 @@ class Mesh(object):
         self.gmsh_order_point_coords_instances  = []
 
         # variables below are for point indices stored 
-        self.points_for_node_extraction         = []
-        self.extracted_node_instances           = []
+        self.point_node_indices_to_file             = False
+        self.points_for_node_extraction             = []
+
+        self.point_node_coords_to_file              = False
+        self.points_for_coord_extraction            = []
+        
+        self.extracted_node_instances               = []
+        self.extracted_node_coord_instances         = []
 
     # --------------------- GEOMETRY/MESH ---------------------
     def add_entity(self, entity=None):
@@ -369,6 +375,7 @@ class Mesh(object):
         aaa = []
         bbb = []
         for a, angle in enumerate(self.rotation_angles):
+            self.instance   = a
             point_rotate_instances = list(self.point_rotate_instance)
 
             gmsh.initialize()
@@ -547,14 +554,11 @@ class Mesh(object):
                 self.gmsh_point_nodes           = gmsh.model.mesh.getNodes(dim=0) # node information for POINTS; only needed in this case
                 extracted_point_node_indices    = self.extract_point_node_indices(self.points_for_node_extraction)
                 self.extracted_node_instances.append(extracted_point_node_indices)
-
-                
-            # print(self.mesh_points_instances[a])  
-            # print(self.gmsh_order_point_coords_instances[a]) 
-            print(gmsh.model.mesh.getNodes(dim=0, tag=1)[0])
-            print(gmsh.model.mesh.getNodes(dim=0, tag=1)[1])
-            print(extracted_point_node_indices)
-            print('number of extracted nodes: ', len(extracted_point_node_indices))
+            
+            if self.points_for_coord_extraction:
+                self.gmsh_point_nodes           = gmsh.model.mesh.getNodes(dim=0) # node information for POINTS; only needed in this case
+                extracted_point_node_coords     = self.extract_point_node_coords(self.points_for_coord_extraction)
+                self.extracted_node_coord_instances.append(extracted_point_node_coords) 
             
             # ------------------------ GETTING CURVE INFORMATION ------------------------
             self.gmsh_curve_entities = gmsh.model.getEntities(1) # of the form (1, i)
@@ -1059,6 +1063,25 @@ class Mesh(object):
         return self.mesh_model
    
     # --------------------- MISCELLANEOUS ---------------------
+    def extract_point_node_coords(self, points):
+         # VECTORIZE &  REMOVE Z-COORDINATE
+        dim = 2
+        tol = 1e-6
+        extracted_point_node_coords     = []
+
+        gmsh_point_node_coords          = self.gmsh_point_nodes[1] # VECTORIZED LIKE [X0 Y0 Z0 X1 Y1 Z1 ...]
+        for point in points:
+            point_coordinate    = point.return_coordinates()[:dim]
+            extracted_point_node_coords.append(point_coordinate)
+        
+        if self.point_node_coords_to_file:
+            file_data = np.array(extracted_point_node_coords).reshape(dim*len(points),1)
+            np.savetxt(self.point_node_coords_to_file + '_{}.txt'.format(int(self.instance+1)), file_data)
+        
+        print(extracted_point_node_coords)
+
+        return extracted_point_node_coords
+
     def extract_point_node_indices(self, points): # called during GMSH operations in assemble_mesh
         tol = 1e-6
         extracted_point_node_indices    = []
@@ -1066,8 +1089,9 @@ class Mesh(object):
         gmsh_point_node_indices         = self.gmsh_point_nodes[0]
         gmsh_point_node_coords          = self.gmsh_point_nodes[1] # VECTORIZED LIKE [X0 Y0 Z0 X1 Y1 Z1 ...]
 
-        for point in points:
-            point_coordinate   = point.return_coordinates()[:3]
+        point_coordinates               = self.extract_point_node_coords(points)
+        
+        for point_coordinate in point_coordinates:
             print('point_coordinate: ', point_coordinate)
             # implement search method via point coordinates and np.linalg.norm()
             # search within gmsh.model.mesh.getNodes
@@ -1075,7 +1099,7 @@ class Mesh(object):
                 diff   = np.array(point_coordinate) - np.array(gmsh_point_node_coords[3*i:3*i+3])
                 if np.linalg.norm(diff) < tol:
                     extracted_point_node_indices.append(node)
-                    break # only breaks out of inner loop; no duplicates so we only need condition satisfied once
+                    break
         
         if self.point_node_indices_to_file: # if this is True, self.point_node_indices_to_file is a name-string for the file
             np.savetxt(self.point_node_indices_to_file + '.txt', extracted_point_node_indices, fmt='%3i')
@@ -1097,8 +1121,16 @@ class Mesh(object):
         # self.mesh_nodes  = self.mesh_nodes.reshape((num_pts * 2,))
         return self.mesh_nodes
 
+    def get_node_coordinates(self, points, print_to_file=False):
+        if print_to_file:
+            self.point_node_coords_to_file = print_to_file
+
+        if not all([isinstance(point, Point) for point in points]):
+            raise TypeError('Variables must all be points.')
+        for point in points:
+            self.points_for_coord_extraction.append(point)
+
     def get_node_indices(self, points, print_to_file=False): # print_to_file is the file name without extension
-        self.point_node_indices_to_file = False
         if print_to_file:
             self.point_node_indices_to_file = print_to_file
 

@@ -46,5 +46,4 @@ if __name__ == '__main__':
     sim.run()
     print(sim['copper_loss'])
     print(sim['efficiency'])
-    print(sim['current_amplitude'])
 

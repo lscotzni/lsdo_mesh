@@ -10,6 +10,7 @@ from post_processing_dir.electrical_model import ElectricalModel
 from post_processing_dir.power_loss_model import PowerLossModel
 from post_processing_dir.mass_model import MassModel
 from post_processing_dir.vector_potential_model import VectorPotentialModel
+from post_processing_dir.torque_loss_model import TorqueLossModel
 
 
 from B_rms_2_model import Brms2Model
@@ -107,6 +108,7 @@ class PostProcessingModel(Model):
         vector_pot_model    = self.add(VectorPotentialModel(), name='vector_pot_model')
         electrical_model    = self.add(ElectricalModel(), name='electrical_model')
         power_loss_model    = self.add(PowerLossModel(), name='power_loss_model')
+        torque_loss_model   = self.add(TorqueLossModel(), name='torque_loss_model')
         efficiency_model    = self.add(EfficiencyModel(), name='efficiency_model')
         mass_model          = self.add(MassModel(), name='mass_model')
 
@@ -115,10 +117,10 @@ class PostProcessingModel(Model):
 if __name__ ==  '__main__':
     t_start             = time.time()
     # rpm                 = 5000
-    # rpm_list            = np.arange(1000, 6000 + 1, 500)
-    # current_list        = np.arange(50, 300 + 1, 50)
-    current_list        = np.array([200])
-    rpm_list            = np.array([1000])
+    rpm_list            = np.arange(1000, 6000 + 1, 500)
+    current_list        = np.arange(50, 300 + 1, 50)
+    # current_list        = np.array([200])
+    # rpm_list            = np.array([1000])
     p                   = 12
     t                   = 0
     motor_length        = 70.e-3
@@ -130,6 +132,10 @@ if __name__ ==  '__main__':
 
     f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
+    f.close()
+
+    f = open('edge_deformation_data/edge_coord_deltas.txt', 'r+')
+    edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
     for n, current_amplitude in enumerate(current_list):
@@ -150,9 +156,12 @@ if __name__ ==  '__main__':
 
         fea = MotorFEA(mesh_file="mesh_files/motor_mesh_new_1", i_abc=i_abc, 
                             old_edge_coords=old_edge_coords)
+        fea.edge_deltas = 0.1*edge_deltas
         air_gap_indices         = np.arange(1,144,4)
         fea.A_z_air_gap_indices = air_gap_indices
         fea.solveMagnetostatic()
+        print(fea.calcAreas())
+        exit()
 
         # A_z_air_gap         = fea.A_z_air_gap
         A_z_air_gap         = fea.winding_A_z
@@ -166,6 +175,7 @@ if __name__ ==  '__main__':
         print(winding_area)
 
         A_z_air_gap_delta   = np.array(abs(A_z_air_gap - A_z_air_gap_shifted))
+        print('manual A_z_air_gap_delta: ', A_z_air_gap_delta)
         
         for m, rpm in enumerate(rpm_list):
             omega               = rpm * 2 * np.pi / 60.
@@ -186,12 +196,15 @@ if __name__ ==  '__main__':
                 omega=omega,
                 phase_current_dq=i_dq,
                 fea=fea,
-                frequency=f
+                frequency=freq
             )
 
             sim = Simulator(aaa)
+            sim['A_z'] = fea.A_z.vector().get_local()
             sim.run()
             print('---')
+            print('A_z_air_gap:', sim['A_z_air_gap'])
+            print('A_z_delta_array:', sim['A_z_delta_array'])
             print('wire resistance:', sim['wire_resistance'])
             print('dq voltage:',sim['phase_voltage_dq'])
             print('abc voltage:',sim['phase_voltage_abc'])
@@ -264,3 +277,5 @@ if __name__ ==  '__main__':
 
     plt.show()
         
+# ------------------------------------ NOTE: ------------------------------------
+#   - in the lsdo_mesh method to output node indices, also add the coordinates as an output

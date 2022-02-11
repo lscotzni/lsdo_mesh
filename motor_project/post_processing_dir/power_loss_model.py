@@ -15,18 +15,29 @@ class PowerLossModel(Model):
         # )
         
         # COPPER LOSS
-        copper_resistivity      = self.declare_variable('copper_resistivity')
-        copper_permeability     = self.declare_variable('copper_permeability')
+        winding_area        = self.declare_variable('winding_area')
+        num_windings        = self.declare_variable('num_windings')
+        slot_fill_factor    = self.declare_variable('slot_fill_factor', val=0.6)
+
+        wire_radius         = ((winding_area * slot_fill_factor / num_windings) / np.pi) ** 0.5
+        wire_radius         = self.register_output(
+            name='wire_radius',
+            var=wire_radius
+        )
+
+        copper_resistivity      = self.declare_variable('copper_resistivity', val=1.68e-8)
+        copper_permeability     = self.declare_variable('copper_permeability', val=1.256629e-6)
         frequency               = self.declare_variable('frequency')
-        wire_radius             = self.declare_variable('wire_radius')
         wire_resistance         = self.declare_variable('wire_resistance')
         current_amplitude       = self.declare_variable('current_amplitude')
-        
-        wire_skin_depth = (copper_resistivity / (np.pi * frequency * copper_permeability))**(0.5)
 
-        wire_resistance_AC = wire_resistance / ((2*wire_skin_depth/wire_radius) - (wire_skin_depth/wire_radius)**(0.5))
+        wire_skin_depth     = (copper_resistivity / (np.pi * frequency * copper_permeability))**(0.5)
+        wire_skin_depth     = self.register_output('wire_skin_depth', wire_skin_depth)
 
-        copper_loss     = (current_amplitude / np.sqrt(2))**2 * wire_resistance_AC
+        wire_resistance_AC  = wire_resistance / ((2*wire_skin_depth/wire_radius) - (wire_skin_depth/wire_radius)**(0.5))
+        wire_resistance_AC  = self.register_output('wire_resistance_AC', wire_resistance_AC)
+
+        copper_loss     = 3 * (current_amplitude / np.sqrt(2))**2 * wire_resistance_AC
 
         copper_loss     = self.register_output(
             name='copper_loss',
@@ -35,7 +46,8 @@ class PowerLossModel(Model):
 
         # EDDY CURRENT LOSS
         lamination_thickness    = self.declare_variable('lamination_thickness', val=0.2e-3)
-        B_rms_2                 = self.declare_variable('B_rms_2')
+        # B_rms_2                 = self.declare_variable('B_rms_2')
+        B_rms_2                 = 2 / np.sqrt(2)
         steel_conductivity      = self.declare_variable('steel_conductivity', val=2.17e6) # grain oriented electrical steel
         steel_area              = self.declare_variable('steel_area')
         motor_length            = self.declare_variable('motor_length')
@@ -61,7 +73,7 @@ class PowerLossModel(Model):
         # PM LOSSES
         magnet_area         = self.declare_variable('magnet_area')
         magnet_width        = self.declare_variable('magnet_width')
-        magnet_resistivity  = self.declare_variable('magnet_resistivity')
+        magnet_resistivity  = self.declare_variable('magnet_resistivity', val=140e-6)
 
         magnet_loss     = magnet_area * motor_length * magnet_width**2 * B_rms_2**2 * frequency**2 \
             / (12 * magnet_resistivity)
@@ -95,7 +107,7 @@ class PowerLossModel(Model):
             var=friction_coeff
         )
 
-        windage_loss        = np.pi * air_density * friction_coeff * motor_length * omega * rotor_radius**2 # UNFINISHED
+        windage_loss        = np.pi * air_density * azimuthal_vel**2 * rotor_radius**2 * friction_coeff * motor_length * omega # UNFINISHED
         windage_loss = self.register_output(
             name='windage_loss',
             var=windage_loss
@@ -112,6 +124,13 @@ class PowerLossModel(Model):
 
 
 
+if __name__ == '__main__':
+    aaa = PowerLossModel()
+    sim = Simulator(aaa)
+
+    sim.run()
+
+    print(sim['windage_loss'])
 
 
 

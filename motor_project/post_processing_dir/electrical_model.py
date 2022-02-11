@@ -15,12 +15,15 @@ class ElectricalModel(Model): # could also call Battery Model?
 
         # -------------------- INPUTS TO MODEL --------------------
         p = 12
-        theta  = self.create_input(name='theta', val=0)
-        omega   = self.declare_variable(name='omega')
+        theta           = self.create_input(name='theta', val=0)
+        omega           = self.declare_variable(name='omega')
+        frequency       = self.declare_variable(name='frequency')
 
-        motor_length = self.declare_variable(name='motor_length', shape=(1,))
-        num_windings = self.declare_variable(name='num_windings', shape=(1,))
-        winding_area = self.declare_variable(name='winding_area')
+        motor_length    = self.declare_variable(name='motor_length', shape=(1,))
+        num_windings    = self.declare_variable(name='num_windings', shape=(1,))
+        winding_area    = self.declare_variable(name='winding_area')
+        slot_fill_factor    = self.declare_variable(name='slot_fill_factor', val=0.6)
+        copper_resistivity  = self.declare_variable(name='copper_resistivity', val=1.68e-8)
 
         # flux_linkage_abc  = self.create_input(name='flux_linkage_abc', shape=(3,))
         flux_linkage_a_i  = self.declare_variable(name='flux_linkage_a_i', shape=(1,))
@@ -38,7 +41,7 @@ class ElectricalModel(Model): # could also call Battery Model?
         # flux_linkage_abc[1] = flux_linkage_b_i * motor_length
         # flux_linkage_abc[2] = flux_linkage_c_i * motor_length
         
-        wire_resistance = 1.68e-8 * motor_length / (winding_area * 0.6) * 12. # on a per-phase basis
+        wire_resistance = copper_resistivity * motor_length / (winding_area * slot_fill_factor) * 12. # on a per-phase basis
         wire_resistance = self.register_output(
             name='wire_resistance',
             var = wire_resistance
@@ -89,8 +92,8 @@ class ElectricalModel(Model): # could also call Battery Model?
             val=0.,
             shape=(2,)
         )
-        phase_voltage_dq[0] = wire_resistance * phase_current_dq[0] - omega * flux_linkage_dq[1]
-        phase_voltage_dq[1] = wire_resistance * phase_current_dq[1] + omega * flux_linkage_dq[0]
+        phase_voltage_dq[0] = wire_resistance * phase_current_dq[0] - frequency * flux_linkage_dq[1]
+        phase_voltage_dq[1] = wire_resistance * phase_current_dq[1] + frequency * flux_linkage_dq[0]
 
         # -------------------- ABC PHASE VOLTAGE MATRIX --------------------
         phase_voltage_abc = self.create_output(
@@ -106,8 +109,8 @@ class ElectricalModel(Model): # could also call Battery Model?
             var=3/2 * csdl.dot(phase_voltage_dq, phase_current_dq)
         )
 
-        output_torque = self.register_output(
-            name='output_torque',
+        electromagnetic_torque = self.register_output(
+            name='electromagnetic_torque',
             var=3/2*p/2*(flux_linkage_dq[0]*phase_current_dq[1] - flux_linkage_dq[1]*phase_current_dq[0])
         )
 

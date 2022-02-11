@@ -12,9 +12,9 @@ class MassModel(Model):
         s = p * 3
         motor_length    = self.declare_variable(name='motor_length')
 
-        copper_density  = self.declare_variable(name='copper_density', val=8960.) # kg/m^3
-        steel_density   = self.declare_variable(name='steel_density', val=7650.) # kg/m^3
-        neodymium_density  = self.declare_variable(name='neodymium_density', val=7500.) # kg/m^3
+        copper_density      = self.declare_variable(name='copper_density', val=8960.) # kg/m^3
+        steel_density       = self.declare_variable(name='steel_density', val=7650.) # kg/m^3
+        neodymium_density   = self.declare_variable(name='neodymium_density', val=7500.) # kg/m^3
         
         winding_area    = self.declare_variable(name='winding_area') # single instance of winding area
         magnet_area     = self.declare_variable(name='magnet_area') # single instance of magnet area
