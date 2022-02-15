@@ -61,23 +61,21 @@ class Area(CustomExplicitOperation):
         
 if __name__ == "__main__":
     iq                  = 282.2 / 3
-    i_abc               = [
-        -iq * np.sin(0.),
-        -iq * np.sin(-2*np.pi/3),
-        -iq * np.sin(2*np.pi/3),
-    ]
-    f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
+    f = open('coarse_mesh_Ru/init_edge_coords.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-    f = open('edge_deformation_data/edge_coord_deltas.txt', 'r+')
+    f = open('coarse_mesh_Ru/edge_coord_deltas.txt', 'r+')
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
     
-    fea = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
+#    fea = MotorFEA(mesh_file="mesh_files/motor_mesh_1", 
+    fea = MotorFEA(mesh_file="coarse_mesh_Ru/motor_mesh_coarse_1",
                             old_edge_coords=old_edge_coords)
-    fea.edge_deltas = edge_deltas
+    fea.edge_deltas = 0.1*edge_deltas
+    updateR(fea.iq, iq)
     sim = Simulator(AreaModel(fea=fea))
+    
     from matplotlib import pyplot as plt
     print("CSDL: Running the model...")
     

@@ -16,7 +16,7 @@ class MotorFEA(object):
     with methods to compute the variational forms, partial derivatives,
     and solve the nonlinear/linear subproblems.
     """
-    def __init__(self, mesh_file="motor_mesh_1", i_abc=[0., 0., 0.], old_edge_coords=None):
+    def __init__(self, mesh_file="motor_mesh_1", old_edge_coords=None):
 
         self.mesh_file = mesh_file
         # Import the initial mesh from the mesh file to FEniCS
@@ -31,7 +31,7 @@ class MotorFEA(object):
         self.p = 12
         self.s = 3 * self.p
         self.vacuum_perm = 4e-7 * np.pi
-        self.i_abc = i_abc
+        self.angle = 0.
 
         # Initialize the edge movements
         self.edge_deltas = None
@@ -40,12 +40,15 @@ class MotorFEA(object):
         self.uhat_old = Function(self.VHAT) # Function to apply the BCs of the mesh motion
         self.duhat = Function(self.VHAT) # Function used in the CSDL model
         self.dRhat = Function(self.VHAT) # Function used in the CSDL model
-
+        
         self.A_z = Function(self.V) # Function for the solution of the magnetic vector potential
         self.v = TestFunction(self.V)
         self.dR = Function(self.V) # Function used in the CSDL model
         self.du = Function(self.V) # Function used in the CSDL model
-
+        
+        self.iq = Function(self.VI)
+        self.diq = Function(self.VI)
+        
         self.total_dofs_bc = len(self.edge_indices)
         self.total_dofs_A_z = len(self.A_z.vector().get_local())
         self.total_dofs_uhat = len(self.uhat.vector().get_local())
@@ -53,6 +56,7 @@ class MotorFEA(object):
         # Partial derivatives in the magnetostatic problem
         self.dR_du = derivative(self.resMS(), self.A_z)
         self.dR_duhat = derivative(self.resMS(), self.uhat)
+        self.dR_diq = derivative(self.resMS(), self.iq)
 
         # Partial derivatives in the mesh motion subproblem
         self.dRm_duhat = derivative(self.resM(), self.uhat)
@@ -88,8 +92,9 @@ class MotorFEA(object):
         """
         self.V = FunctionSpace(self.mesh, 'P', 1)
         self.VHAT = VectorFunctionSpace(self.mesh, 'P', 1)
+        self.VI = FunctionSpace(self.mesh, 'R', 0)
         self.V0 = FunctionSpace(self.mesh, 'DG', 0)
-
+        
     def locateMeshMotion(self,old_edge_coords):
         """
         Find the indices of the dofs for setting up the boundary condition
@@ -145,8 +150,8 @@ class MotorFEA(object):
         Formulation of the magnetostatic problem
         """
         res_ms = pdeRes(
-                self.A_z,self.v,self.uhat,self.dx,
-                self.p,self.s,self.Hc,self.vacuum_perm, self.i_abc)
+                self.A_z,self.v,self.uhat,self.iq,self.dx,
+                self.p,self.s,self.Hc,self.vacuum_perm, self.angle)
         return res_ms
 
     def getBCDerivatives(self):
@@ -466,37 +471,36 @@ class MotorFEA(object):
 
 if __name__ == "__main__":
     iq                  = 282.2 # 282.2
-    i_abc               = [
-        -iq * np.sin(0.),
-        -iq * np.sin(2*np.pi/3),
-        -iq * np.sin(-2*np.pi/3),
-    ]
-    f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
+
+#    f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
+#    old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
+#    f.close()
+
+#    f = open('edge_deformation_data/edge_coord_deltas.txt', 'r+')
+#    edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
+#    f.close()
+
+    f = open('coarse_mesh_Ru/init_edge_coords.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-    f = open('edge_deformation_data/edge_coord_deltas.txt', 'r+')
+    f = open('coarse_mesh_Ru/edge_coord_deltas.txt', 'r+')
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
-
+    
 #    print("Number of nonzero displacements:", np.count_nonzero(edge_deltas))
     
     # One-time computation for the initial edge coordinates from
     # the code that creates the mesh file
     # old_edge_coords = getInitialEdgeCoords()
-    num_stator = 36
-    R = 0.05
-    a = 2*pi/num_stator*np.arange(36)
-    x = R*np.cos(a)
-    y = R*np.sin(a)
-    problem = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
-                            old_edge_coords=old_edge_coords)
+#    problem = MotorFEA(mesh_file="mesh_files/motor_mesh_1",
+    problem = MotorFEA(mesh_file="coarse_mesh_Ru/motor_mesh_coarse_1",
+                                old_edge_coords=old_edge_coords)
     
     problem.edge_deltas = 0.1*edge_deltas
+    problem.iq.assign(Constant(float(iq)))
     problem.solveMagnetostatic(report=False)
     
-    
-
     f = open('A_z_air_gap_coords_1.txt', 'r+')
     A_z_air_gap_coords = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
@@ -506,9 +510,11 @@ if __name__ == "__main__":
     print(A_z_air_gap)
     M = problem.extractAzAirGapDerivatives()
     
-#    problem.solveMeshMotion(report=False)
-#    problem.solveMagnetostatic(report=False)
-    
+    problem.solveMeshMotion(report=True)
+    problem.solveMagnetostatic(report=False)
+    problem.moveMesh(problem.uhat)
+    plot(problem.mesh)
+    plt.show()
     print("for Eddy current loss:")
     print(problem.calcFluxInfluence(n=2, subdomains=problem.ec_loss_subdomain))
     problem.calcFluxInfluenceDerivatives(n=2, subdomains=problem.ec_loss_subdomain)

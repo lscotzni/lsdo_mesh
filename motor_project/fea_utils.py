@@ -98,6 +98,9 @@ def convertToDense(A_petsc):
     A_dense = A_petsc.convert("dense")
     return A_dense.getDenseArray()
 
+def updateR(f, f_value):
+    f.assign(Constant(float(f_value)))
+    
 def update(f, f_values):
     """
     Update the nodal values in every dof of the DOLFIN function `f`

@@ -35,7 +35,15 @@ def RelativePermeability(subdomain, u, uhat):
     return mu
 # END NEW PERMEABILITY
 
-def JS(v,uhat,p,s,Hc,i_abc):
+def compute_i_abc(iq, angle=0.0):
+    i_abc = as_vector([
+        iq * np.sin(angle),
+        iq * np.sin(angle + 2*np.pi/3),
+        iq * np.sin(angle - 2*np.pi/3),
+    ])
+    return i_abc
+    
+def JS(v,uhat,iq,p,s,Hc,angle):
     """
     The variational form for the source term (current) of the
     Maxwell equation
@@ -61,6 +69,7 @@ def JS(v,uhat,p,s,Hc,i_abc):
     stator_winding_index_end    = stator_winding_index_start + num_windings
     Jw = 0.
     N = 13
+    i_abc = compute_i_abc(iq, angle)
     JA, JB, JC = i_abc[0] * N + DOLFIN_EPS, i_abc[1] * N + DOLFIN_EPS, i_abc[2] * N + DOLFIN_EPS
 
     # OLD METHOD
@@ -110,7 +119,7 @@ def JS(v,uhat,p,s,Hc,i_abc):
 
     return Jm + Jw
 
-def pdeRes(u,v,uhat,dx,p,s,Hc,vacuum_perm,i_abc):
+def pdeRes(u,v,uhat,iq,dx,p,s,Hc,vacuum_perm,angle):
     """
     The variational form of the PDE residual for the magnetostatic problem
     """
@@ -121,6 +130,6 @@ def pdeRes(u,v,uhat,dx,p,s,Hc,vacuum_perm,i_abc):
     for i in range(num_components):
         res += 1./vacuum_perm*(1/RelativePermeability(i + 1, u, uhat))\
                 *dot(gradu,gradv)*J(uhat)*dx(i + 1)
-    res -= JS(v,uhat,p,s,Hc,i_abc)
+    res -= JS(v,uhat,iq,p,s,Hc,angle)
     return res
 

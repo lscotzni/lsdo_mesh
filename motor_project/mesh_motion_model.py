@@ -119,16 +119,11 @@ class MeshMotion(CustomImplicitOperation):
 
 if __name__ == "__main__":
     iq                  = 282.2 / 3
-    i_abc               = [
-        -iq * np.sin(0.),
-        -iq * np.sin(-2*np.pi/3),
-        -iq * np.sin(2*np.pi/3),
-    ]
-    f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
+    f = open('coarse_mesh_Ru/init_edge_coords.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-    f = open('edge_deformation_data/edge_coord_deltas.txt', 'r+')
+    f = open('coarse_mesh_Ru/edge_coord_deltas.txt', 'r+')
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
@@ -138,11 +133,11 @@ if __name__ == "__main__":
     # the code that creates the mesh file
     # old_edge_coords = getInitialEdgeCoords()
     
-    fea = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
+#    fea = MotorFEA(mesh_file="mesh_files/motor_mesh_1",
+    fea = MotorFEA(mesh_file="coarse_mesh_Ru/motor_mesh_coarse_1",
                             old_edge_coords=old_edge_coords)
-
     sim = Simulator(MeshMotionModel(fea=fea))
-    sim['edge_deltas'] = edge_deltas
+    sim['edge_deltas'] = 0.5*edge_deltas
     sim.run()
     plt.figure(1)
     fea.moveMesh(fea.uhat)

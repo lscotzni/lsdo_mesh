@@ -99,7 +99,6 @@ class PostProcessingModel(Model):
             flux_influence_ec_model = self.add(FluxInfluenceECModel(fea=fea_list[i]), name='flux_influence_ec_model_{}'.format(i+1), promotes=[])
             flux_influence_h_model  = self.add(FluxInfluenceHModel(fea=fea_list[i]), name='flux_influence_h_model_{}'.format(i+1), promotes=[])
             flux_influence_pm_model = self.add(FluxInfluencePMModel(fea=fea_list[i]), name='flux_influence_pm_model_{}'.format(i+1), promotes=[])
-
             A_z_input           = self.declare_variable(name='A_z_{}_input'.format(i+1), val=fea_list[i].A_z.vector().get_local())
 
             A_z_air_gap_model   = self.add(AzAirGapModel(fea=fea_list[i]), name='A_z_air_gap_model_{}'.format(i+1), promotes=[])
@@ -178,14 +177,16 @@ if __name__ ==  '__main__':
             print('fea instance:', i)
             print('-------')
             angle = 0.0 + i * 5 * np.pi / 180
-            i_abc               = [
-                iq * np.sin(angle),
-                iq * np.sin(angle + 2*np.pi/3),
-                iq * np.sin(angle - 2*np.pi/3),
-            ]
+#            i_abc               = [
+#                iq * np.sin(angle),
+#                iq * np.sin(angle + 2*np.pi/3),
+#                iq * np.sin(angle - 2*np.pi/3),
+#            ]
 
-            fea = MotorFEA(mesh_file="mesh_files/motor_mesh_{}".format(i+1), i_abc=i_abc, 
+            fea = MotorFEA(mesh_file="mesh_files/motor_mesh_{}".format(i+1),
                                 old_edge_coords=old_edge_coords)
+            fea.angle = angle
+            updateR(fea.iq, iq)
             fea.solveMagnetostatic(report=True)
             
 
@@ -221,7 +222,12 @@ if __name__ ==  '__main__':
             sim = Simulator(aaa)
             for i in range(instances):
                 sim['A_z_air_gap_model_{}.A_z'.format(i+1)] = fea_list[i].A_z.vector().get_local()
+                sim['flux_influence_ec_model_{}.A_z'.format(i+1)] = fea_list[i].A_z.vector().get_local()
                 sim['flux_influence_ec_model_{}.uhat'.format(i+1)] = fea_list[i].uhat.vector().get_local()
+                sim['flux_influence_h_model_{}.A_z'.format(i+1)] = fea_list[i].A_z.vector().get_local()
+                sim['flux_influence_h_model_{}.uhat'.format(i+1)] = fea_list[i].uhat.vector().get_local()
+                sim['flux_influence_pm_model_{}.A_z'.format(i+1)] = fea_list[i].A_z.vector().get_local()
+                sim['flux_influence_pm_model_{}.uhat'.format(i+1)] = fea_list[i].uhat.vector().get_local()
             sim.run()
             # print('---')
             # print('A_z_air_gap:', sim['A_z_air_gap'])

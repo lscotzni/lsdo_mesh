@@ -22,9 +22,9 @@ class MagneticStatesModel(Model):
         uhat = self.declare_variable('uhat',
                         shape=(self.input_size,),
                         val=np.zeros(self.input_size).reshape(self.input_size,))
-
+        iq = self.declare_variable('iq',val=0.0)
         e = MagneticStates(fea=self.fea)
-        A_z = csdl.custom(uhat, op=e)
+        A_z = csdl.custom(uhat, iq, op=e)
         self.register_output('A_z', A_z)
 
 class MagneticStates(CustomImplicitOperation):
@@ -49,10 +49,12 @@ class MagneticStates(CustomImplicitOperation):
         self.add_input('uhat',
                         shape=(self.input_size,),
                         val=np.zeros(self.input_size).reshape(self.input_size,))
+        self.add_input('iq',val=0.0)
         self.add_output('A_z',
                         shape=(self.output_size,),
                         val=np.zeros(self.output_size).reshape(self.output_size,))
         self.declare_derivatives('A_z', 'uhat')
+        self.declare_derivatives('A_z', 'iq')
         self.declare_derivatives('A_z', 'A_z')
         self.bcs = self.fea.setBCMagnetostatic()
 
@@ -61,6 +63,7 @@ class MagneticStates(CustomImplicitOperation):
         print("CSDL: Running evaluate_residuals()...")
         print("="*40)
         update(self.fea.uhat, inputs['uhat'])
+        update(self.fea.iq, inputs['iq'])
         update(self.fea.A_z, outputs['A_z'])
 
         resMS = assemble(self.fea.resMS())
@@ -72,7 +75,7 @@ class MagneticStates(CustomImplicitOperation):
         print("CSDL: Running solve_residual_equations()...")
         print("="*40)
         update(self.fea.uhat, inputs['uhat'])
-
+        updateR(self.fea.iq, inputs['iq'])
         self.fea.solveMagnetostatic()
 
         outputs['A_z'] = self.fea.A_z.vector().get_local()
@@ -83,10 +86,12 @@ class MagneticStates(CustomImplicitOperation):
         print("CSDL: Running compute_derivatives()...")
         print("="*40)
         update(self.fea.uhat, inputs['uhat'])
+        updateR(self.fea.iq, inputs['iq'])
         update(self.fea.A_z, outputs['A_z'])
 
         self.dRdu = assemble(self.fea.dR_du)
-        self.dRdf = assemble(self.fea.dR_duhat)
+        self.dRdf1 = assemble(self.fea.dR_duhat)
+        self.dRdf2 = assemble(self.fea.dR_diq)
         self.A,_ = assemble_system(self.fea.dR_du, self.fea.resMS(), bcs=self.bcs)
 
     def compute_jacvec_product(self, inputs, outputs,
@@ -104,7 +109,11 @@ class MagneticStates(CustomImplicitOperation):
                 if 'uhat' in d_inputs:
                     update(self.fea.duhat, d_inputs['uhat'])
                     d_residuals['A_z'] += computeMatVecProductFwd(
-                            self.dRdf, self.fea.duhat)
+                            self.dRdf1, self.fea.duhat)
+                if 'iq' in d_inputs:
+                    update(self.fea.diq, d_inputs['iq'])
+                    d_residuals['A_z'] += computeMatVecProductFwd(
+                            self.dRdf2, self.fea.diq)
 
         if mode == 'rev':
             if 'A_z' in d_residuals:
@@ -114,7 +123,10 @@ class MagneticStates(CustomImplicitOperation):
                             self.dRdu, self.fea.dR)
                 if 'uhat' in d_inputs:
                     d_inputs['uhat'] += computeMatVecProductBwd(
-                            self.dRdf, self.fea.dR)
+                            self.dRdf1, self.fea.dR)
+                if 'iq' in d_inputs:
+                    d_inputs['iq'] += computeMatVecProductBwd(
+                            self.dRdf2, self.fea.dR)
 
     def apply_inverse_jacobian(self, d_outputs, d_residuals, mode):
         print("="*40)
@@ -129,12 +141,7 @@ class MagneticStates(CustomImplicitOperation):
 
 
 if __name__ == "__main__":
-    iq                  = 282.2 / 3
-    i_abc               = [
-        -iq * np.sin(0.),
-        -iq * np.sin(-2*np.pi/3),
-        -iq * np.sin(2*np.pi/3),
-    ]
+    iq = 282.2
     f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
@@ -144,11 +151,13 @@ if __name__ == "__main__":
     f.close()
 
     
-    fea = MotorFEA(mesh_file="mesh_files/motor_mesh_new_1", i_abc=i_abc, 
+    fea = MotorFEA(mesh_file="coarse_mesh_Ru/motor_mesh_coarse_1",
                             old_edge_coords=old_edge_coords)
-    fea.edge_deltas = edge_deltas
+    fea.edge_deltas = 0.1*edge_deltas
+    
     # fea.solveMeshMotion()
     sim = Simulator(MagneticStatesModel(fea=fea))
+    sim['iq'] = iq
     from matplotlib import pyplot as plt
     print("CSDL: Running the model...")
     sim.run()
@@ -162,5 +171,5 @@ if __name__ == "__main__":
     # plot(fea.subdomains_mf)
     plt.show()
 
-    # print("CSDL: Checking the partial derivatives...")
-    # sim.check_partials()
+    print("CSDL: Checking the partial derivatives...")
+    sim.check_partials()
