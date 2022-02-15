@@ -10,12 +10,13 @@ class ElectricalModel(Model): # could also call Battery Model?
         self.parameters.declare('flux_linkage_abc')
 
     def define(self):
-        # theta               = self.parameters['theta']
-        # flux_linkage_abc    = self.parameters['flux_linkage_abc']
+        theta               = self.parameters['theta']
+
 
         # -------------------- INPUTS TO MODEL --------------------
         p = 12
-        theta           = self.create_input(name='theta', val=0)
+        # theta           = self.create_input(name='theta', val=0)
+        theta           = self.declare_variable(name='theta', val=theta)
         omega           = self.declare_variable(name='omega')
         frequency       = self.declare_variable(name='frequency')
 
@@ -92,8 +93,8 @@ class ElectricalModel(Model): # could also call Battery Model?
             val=0.,
             shape=(2,)
         )
-        phase_voltage_dq[0] = wire_resistance * phase_current_dq[0] - frequency * flux_linkage_dq[1]
-        phase_voltage_dq[1] = wire_resistance * phase_current_dq[1] + frequency * flux_linkage_dq[0]
+        phase_voltage_dq[0] = wire_resistance * phase_current_dq[0] - 2 * np.pi * frequency * flux_linkage_dq[1]
+        phase_voltage_dq[1] = wire_resistance * phase_current_dq[1] + 2 * np.pi * frequency * flux_linkage_dq[0]
 
         # -------------------- ABC PHASE VOLTAGE MATRIX --------------------
         phase_voltage_abc = self.create_output(

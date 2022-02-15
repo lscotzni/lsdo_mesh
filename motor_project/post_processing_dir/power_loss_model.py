@@ -5,14 +5,6 @@ from csdl_om import Simulator
 
 class PowerLossModel(Model):
     def define(self):
-
-        # OLD COPPER LOSS:
-        # copper_loss = (current_amplitude/num_windings)**2 * wire_resistance
-        # # copper_loss = 2 * (current_amplitude)**2 * wire_resistance
-        # copper_loss = self.register_output(
-        #     name='copper_loss',
-        #     var=copper_loss
-        # )
         
         # COPPER LOSS
         winding_area        = self.declare_variable('winding_area')
@@ -46,13 +38,12 @@ class PowerLossModel(Model):
 
         # EDDY CURRENT LOSS
         lamination_thickness    = self.declare_variable('lamination_thickness', val=0.2e-3)
-        # B_rms_2                 = self.declare_variable('B_rms_2')
-        B_rms_2                 = 2 / np.sqrt(2)
+        avg_flux_influence_ec   = self.declare_variable('avg_flux_influence_ec')
         steel_conductivity      = self.declare_variable('steel_conductivity', val=2.17e6) # grain oriented electrical steel
         steel_area              = self.declare_variable('steel_area')
         motor_length            = self.declare_variable('motor_length')
 
-        eddy_current_loss = np.pi**2 / 6 * steel_area * motor_length * B_rms_2**2 * frequency**2 * \
+        eddy_current_loss = np.pi**2 / 6 * motor_length * avg_flux_influence_ec * frequency**2 * \
             lamination_thickness**2 * steel_conductivity
 
         eddy_current_loss = self.register_output(
@@ -62,8 +53,9 @@ class PowerLossModel(Model):
 
         # HYSTERESIS LOSS
         steel_hysteresis_coeff  = self.declare_variable('steel_hysteresis_coeff', val=1.91)
+        avg_flux_influence_h    = self.declare_variable('avg_flux_influence_h')
 
-        hysteresis_loss = steel_hysteresis_coeff * steel_area * motor_length * B_rms_2**2 * frequency
+        hysteresis_loss = steel_hysteresis_coeff * motor_length * avg_flux_influence_h * frequency
 
         hysteresis_loss = self.register_output(
             name='hysteresis_loss',
@@ -71,11 +63,13 @@ class PowerLossModel(Model):
         )
 
         # PM LOSSES
-        magnet_area         = self.declare_variable('magnet_area')
-        magnet_width        = self.declare_variable('magnet_width')
-        magnet_resistivity  = self.declare_variable('magnet_resistivity', val=140e-6)
+        magnet_area             = self.declare_variable('magnet_area')
+        magnet_width            = self.declare_variable('magnet_width')
+        magnet_resistivity      = self.declare_variable('magnet_resistivity', val=140e-6)
+        avg_flux_influence_pm   = self.declare_variable('avg_flux_influence_pm')
+        
 
-        magnet_loss     = magnet_area * motor_length * magnet_width**2 * B_rms_2**2 * frequency**2 \
+        magnet_loss     = motor_length * magnet_width**2 * avg_flux_influence_pm * frequency**2 \
             / (12 * magnet_resistivity)
 
         magnet_loss     = self.register_output(

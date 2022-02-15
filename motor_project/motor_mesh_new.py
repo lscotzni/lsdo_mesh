@@ -608,7 +608,7 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
     m.add_all_entities_to_physical_group('curves')
 
     # m.get_node_indices(stator_inner_surface_4_p, print_to_file='A_z_stator_indices') # Getting node indices out for FLUX LINKAGE
-    m.get_node_coordinates(stator_inner_surface_4_p, print_to_file='A_z_stator_coords')
+    m.get_node_coordinates(stator_inner_surface_4_p, print_to_file='A_z_air_gap_coords')
 
     m.assemble(coordinate_system='polar')
 
@@ -684,8 +684,8 @@ ERRORS:
 
 if __name__ == '__main__':
     mesh_object = MotorMeshGenerator(
-        rotation_angles=[0], 
-        file_name='mesh_files/motor_mesh_new',
+        rotation_angles=np.pi / 180 * np.arange(0,30,5), 
+        file_name='mesh_files/motor_mesh',
         poles=12,
     )   
 

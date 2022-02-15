@@ -93,7 +93,7 @@ if __name__ == "__main__":
     print('length of A_z_air_gap: ',len(sim['A_z_air_gap']))
 
     print("CSDL: Running check_partials()...")
-    sim.check_partials()
+    # sim.check_partials()
 
 
         

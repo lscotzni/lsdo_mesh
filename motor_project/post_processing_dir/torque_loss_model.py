@@ -5,7 +5,7 @@ from csdl_om import Simulator
 
 class TorqueLossModel(Model):
     def define(self):
-        electromagnetic_torque      = self.declare_variable('electromagnetic_torque')
+        avg_electromagnetic_torque  = self.declare_variable('avg_electromagnetic_torque')
         omega                       = self.declare_variable('omega')
         hysteresis_loss             = self.declare_variable('hysteresis_loss')
         windage_loss                = self.declare_variable('windage_loss')
@@ -19,7 +19,7 @@ class TorqueLossModel(Model):
             var=torque_loss
         )
 
-        output_torque               = electromagnetic_torque - torque_loss
+        output_torque               = avg_electromagnetic_torque - torque_loss
 
         output_torque   = self.register_output(
             name='output_torque',

@@ -7,7 +7,7 @@ import numpy as np
 from csdl_om import Simulator
 from motor_fea import *
 
-class FluxInfluenceECModel(Model):
+class FluxInfluencePMModel(Model):
 
     def initialize(self):
         self.parameters.declare('fea')
@@ -22,12 +22,12 @@ class FluxInfluenceECModel(Model):
         uhat = self.declare_variable('uhat',
                         shape=(self.input_size_uhat,),
                         val=0.0)
-        e = FluxInfluenceEC(fea=self.fea)
+        e = FluxInfluencePM(fea=self.fea)
         B_influence_pm = csdl.custom(A_z, uhat, op=e)
         self.register_output('B_influence_pm', B_influence_pm)
 
 
-class FluxInfluenceEC(CustomExplicitOperation):
+class FluxInfluencePM(CustomExplicitOperation):
     """
     input: A_z, uhat
     output: B_influence_pm = B**2*dx(subdomains)
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     fea = MotorFEA(mesh_file="mesh_files/motor_mesh_1", i_abc=i_abc, 
                             old_edge_coords=old_edge_coords)
     fea.edge_deltas = 0.1*edge_deltas
-    sim = Simulator(FluxInfluenceECModel(fea=fea))
+    sim = Simulator(FluxInfluencePMModel(fea=fea))
     from matplotlib import pyplot as plt
     print("CSDL: Running the model...")
     fea.solveMagnetostatic()
