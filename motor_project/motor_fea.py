@@ -472,29 +472,16 @@ class MotorFEA(object):
 if __name__ == "__main__":
     iq                  = 282.2 # 282.2
 
-#    f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
-#    old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
-#    f.close()
-
-#    f = open('edge_deformation_data/edge_coord_deltas.txt', 'r+')
-#    edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
-#    f.close()
-
-    f = open('coarse_mesh_Ru/init_edge_coords.txt', 'r+')
+    f = open('edge_deformation_data/init_edge_coords_coarse_1.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-    f = open('coarse_mesh_Ru/edge_coord_deltas.txt', 'r+')
+    f = open('edge_deformation_data/edge_coord_deltas_coarse_1.txt', 'r+')
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
+
     
-#    print("Number of nonzero displacements:", np.count_nonzero(edge_deltas))
-    
-    # One-time computation for the initial edge coordinates from
-    # the code that creates the mesh file
-    # old_edge_coords = getInitialEdgeCoords()
-#    problem = MotorFEA(mesh_file="mesh_files/motor_mesh_1",
-    problem = MotorFEA(mesh_file="coarse_mesh_Ru/motor_mesh_coarse_1",
+    problem = MotorFEA(mesh_file="mesh_files/motor_mesh_coarse_1",
                                 old_edge_coords=old_edge_coords)
     
     problem.edge_deltas = 0.1*edge_deltas
