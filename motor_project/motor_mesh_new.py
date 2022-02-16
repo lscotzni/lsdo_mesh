@@ -10,14 +10,14 @@ Mesh Generation of 2D Radial Flux PMSM
 #   !!!!!!! NOTE: NEED TO WRITE AS A FUNCTION !!!!!!!
 # =========================================================
 
-def MotorMeshGenerator(rotation_angles, file_name, poles):
+def MotorMeshGenerator(rotation_angles, file_name, poles, coarse_test=False):
 
     ''' -------------------- Motor Attributes -------------------- '''
     p       = poles # poles per 360 degrees
     s       = 3 * p # stator slots per 360 degrees
     m       = 3 # number of phases for stator winding current
 
-    coarse_test = False
+    # coarse_test = False
     if not coarse_test:
         # TARGET MESH SIZES (DIFFER FOR POINTS)
         l1      = 1e-2
@@ -26,6 +26,7 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
         l4      = 3e-4
         ks      = 1e-2 # target mesh size
     elif coarse_test:
+        file_name = file_name + '_coarse'
         l1      = 1e-2
         l2      = 1e-2
         l3      = 1e-2
@@ -612,11 +613,11 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
 
     m.assemble(coordinate_system='polar')
 
-    def getInitialEdgeCoords():
-        old_edge_coords = m.get_ffd_edge_old_coords(output_type='cartesian')
+    def getInitialEdgeCoords(instance=0):
+        old_edge_coords = m.get_ffd_edge_old_coords(output_type='cartesian', instance=instance)
         # Ru: trim out the origin (x=0,y=0) where there's no nearby (dist<1e-10) nodes in the mesh
         return old_edge_coords[:-2]
-    def generateMeshMovement(angle=0.):
+    def generateMeshMovement(angle=0., instance=0):
         # delta = np.zeros((4 * vars(m)['num_ffd_faces'], 2)) # array of deltas applied to FFD FACES
         # delta[:8, 1] = 0
         # for i in range(4):
@@ -631,29 +632,40 @@ def MotorMeshGenerator(rotation_angles, file_name, poles):
         for i in range(4):
             delta[i, 1] = -.02 # shifting first magnet + air gaps radially in by 0.02 m
         edge_deltas= m.test_ffd_edge_parametrization_polar(delta,   
-                                                    output_type='cartesian')
+                                                    output_type='cartesian',
+                                                    instance=instance)
         # print(edge_deltas)
         # exit()
         return edge_deltas[:-2]
 
-    old_edge_coords = getInitialEdgeCoords()
-    edge_deltas     = generateMeshMovement()
-
     
+    # old_edge_coords = getInitialEdgeCoords()
+    # edge_deltas     = generateMeshMovement()
 
-    init_edge_coords = 'init_edge_coords.txt'
-    # f1  = open(init_edge_coords, 'w')
-    # for i in range(old_edge_coords.shape[0]):
-    #     f.write(old_edge_coords[i] + '\n')
-    # f1.close()
-    np.savetxt(init_edge_coords, old_edge_coords)
+    for instance in range(len(rotation_angles)):
+        old_edge_coords = getInitialEdgeCoords(instance=instance)
+        edge_deltas     = generateMeshMovement(instance=instance)
 
-    edge_coord_deltas = 'edge_coord_deltas.txt'
-    # f2  = open(edge_coord_deltas, 'w')
-    # for i in range(edge_deltas.shape[0]):
-    #     f.write(edge_deltas[i] + '\n')
-    # f2.close()
-    np.savetxt(edge_coord_deltas, edge_deltas)
+        init_edge_coords    = 'edge_deformation_data/init_edge_coords_'
+        edge_coord_deltas   = 'edge_deformation_data/edge_coord_deltas_'
+
+        if coarse_test:
+            init_edge_coords  = init_edge_coords + 'coarse_'
+            edge_coord_deltas = edge_coord_deltas + 'coarse_'
+    
+        # init_edge_coords = 'init_edge_coords_{}.txt'.format(i+1)
+        # f1  = open(init_edge_coords, 'w')
+        # for i in range(old_edge_coords.shape[0]):
+        #     f.write(old_edge_coords[i] + '\n')
+        # f1.close()
+        np.savetxt(init_edge_coords + '{}.txt'.format(instance+1), getInitialEdgeCoords(instance=instance))
+
+        # edge_coord_deltas = 'edge_coord_deltas_{}.txt'.format(i+1)
+        # f2  = open(edge_coord_deltas, 'w')
+        # for i in range(edge_deltas.shape[0]):
+        #     f.write(edge_deltas[i] + '\n')
+        # f2.close()
+        np.savetxt(edge_coord_deltas + '{}.txt'.format(instance+1), generateMeshMovement(instance=instance))
 
     return m
 
@@ -684,8 +696,10 @@ ERRORS:
 
 if __name__ == '__main__':
     mesh_object = MotorMeshGenerator(
+        # rotation_angles=[0], 
         rotation_angles=np.pi / 180 * np.arange(0,30,5), 
         file_name='mesh_files/motor_mesh',
         poles=12,
+        coarse_test=False
     )   
 

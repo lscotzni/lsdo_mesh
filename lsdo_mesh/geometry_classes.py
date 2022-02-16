@@ -1184,11 +1184,11 @@ class Mesh(object):
 
     # Ru: seperate the functions for `old_edge_coords` and `edge_deltas` to 
     # make the reusage of the second function more efficient
-    def get_ffd_edge_old_coords(self, output_type):
+    def get_ffd_edge_old_coords(self, output_type, instance=0):
         # ordered_coords = self.gmsh_order_point_coords_polar
-        ordered_coords = self.mesh_points_instances[0]
+        ordered_coords = self.mesh_points_instances[instance]
         # old_edge_coords = self.edge_param_sps_mat.dot(ordered_coords)
-        old_edge_coords = self.edge_param_sps_mat_list[0].dot(ordered_coords)
+        old_edge_coords = self.edge_param_sps_mat_list[instance].dot(ordered_coords)
         if output_type is 'cartesian':
             for i in range(int(len(old_edge_coords)/2)):
                 old_edge_coords[2*i:2*i+2] = [
@@ -1197,20 +1197,20 @@ class Mesh(object):
                 ]
         return old_edge_coords
         
-    def test_ffd_edge_parametrization_polar(self, delta, output_type):
+    def test_ffd_edge_parametrization_polar(self, delta, output_type, instance=0):
         # if delta.shape != (int(4 * self.num_ffd_faces), 2):
         #     raise TypeError('Shape of delta numpy array must be 4 * # FFD faces * 2')
         delta = delta.reshape((2 * delta.shape[0], ))
 
         # --- FFD TEST
         # ordered_coords = self.gmsh_order_point_coords_polar
-        ordered_coords = self.mesh_points_instances[0]
+        ordered_coords = self.mesh_points_instances[instance]
         print(self.ffd_face_sps_mat.shape)
-        point_delta = self.ffd_face_sps_mat.dot(delta)
+        point_delta = self.ffd_face_sps_mat_list[instance].dot(delta)
         new_coords = ordered_coords + point_delta
 
         # --- EDGE COORDINATE TEST
-        new_edge_coords = self.edge_param_sps_mat_list[0].dot(new_coords)
+        new_edge_coords = self.edge_param_sps_mat_list[instance].dot(new_coords)
         
         if output_type is 'cartesian':
             for i in range(int(len(new_edge_coords)/2)):

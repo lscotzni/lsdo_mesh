@@ -146,7 +146,7 @@ if __name__ ==  '__main__':
     motor_length        = 70.e-3
     angles              = np.arange(0,30,5) * np.pi / 180
     instances           = len(angles)
-    instances           = 1
+    instances           = 2
 
     efficiency_map      = np.zeros((len(current_list), len(rpm_list)))
     input_power_map     = np.zeros((len(current_list), len(rpm_list)))
