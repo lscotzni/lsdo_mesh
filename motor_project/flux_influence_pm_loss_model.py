@@ -74,16 +74,17 @@ if __name__ == "__main__":
         -iq * np.sin(-2*np.pi/3),
         -iq * np.sin(2*np.pi/3),
     ]
-    f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
+    f = open('edge_deformation_data/init_edge_coords_coarse_1.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-    f = open('edge_deformation_data/edge_coord_deltas.txt', 'r+')
+    f = open('edge_deformation_data/edge_coord_deltas_coarse_1.txt', 'r+')
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
+
     
-    fea = MotorFEA(mesh_file="mesh_files/motor_mesh_1",
-                            old_edge_coords=old_edge_coords)
+    fea = MotorFEA(mesh_file="mesh_files/motor_mesh_coarse_1",
+                                old_edge_coords=old_edge_coords)
     fea.edge_deltas = 0.1*edge_deltas
     fea.iq.assign(Constant(float(iq)))
     sim = Simulator(FluxInfluencePMModel(fea=fea))

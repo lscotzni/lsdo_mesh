@@ -488,6 +488,7 @@ if __name__ == "__main__":
     f = open('edge_deformation_data/edge_coord_deltas_1.txt', 'r+')
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
+
     
 #    print("Number of nonzero displacements:", np.count_nonzero(edge_deltas))
     
