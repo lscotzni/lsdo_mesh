@@ -15,7 +15,6 @@ class EfficiencyModel(Model):
         copper_loss         = self.declare_variable(name='copper_loss')
         eddy_current_loss   = self.declare_variable(name='eddy_current_loss')
         hysteresis_loss     = self.declare_variable(name='hysteresis_loss')
-        magnet_loss         = self.declare_variable(name='magnet_loss')
         windage_loss        = self.declare_variable(name='windage_loss')
         stray_loss          = self.declare_variable(name='stray_loss')
 
@@ -26,13 +25,10 @@ class EfficiencyModel(Model):
 
         total_power_loss = self.register_output(
             name='total_power_loss',
-            var=copper_loss + eddy_current_loss + hysteresis_loss + magnet_loss + windage_loss + stray_loss
+            var=copper_loss + eddy_current_loss + hysteresis_loss + windage_loss + stray_loss
         )
 
         # NEED TO ADD COMPUTATIONS FOR LOAD TORQUE
-
-        # efficiency = input_power / (input_power + copper_loss) # input power doesn't take into account copper loss
-        # efficiency = output_power / (input_power + copper_loss)
         efficiency = output_power / (output_power + total_power_loss) * 100
         efficiency = self.register_output(
             name='efficiency',

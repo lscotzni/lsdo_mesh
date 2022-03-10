@@ -9,7 +9,7 @@ class PowerLossModel(Model):
         # COPPER LOSS
         winding_area        = self.declare_variable('winding_area')
         num_windings        = self.declare_variable('num_windings')
-        slot_fill_factor    = self.declare_variable('slot_fill_factor', val=0.6)
+        slot_fill_factor    = self.declare_variable('slot_fill_factor')
 
         wire_radius         = ((winding_area * slot_fill_factor / num_windings) / np.pi) ** 0.5
         wire_radius         = self.register_output(
@@ -29,7 +29,9 @@ class PowerLossModel(Model):
         wire_resistance_AC  = wire_resistance / ((2*wire_skin_depth/wire_radius) - (wire_skin_depth/wire_radius)**(0.5))
         wire_resistance_AC  = self.register_output('wire_resistance_AC', wire_resistance_AC)
 
-        copper_loss     = 3 * (current_amplitude / np.sqrt(2))**2 * wire_resistance_AC
+        # copper_loss     = 3 * (current_amplitude / np.sqrt(2))**2 * wire_resistance_AC
+
+        copper_loss     = 3 * (current_amplitude / np.sqrt(2))**2 * wire_resistance
 
         copper_loss     = self.register_output(
             name='copper_loss',
@@ -43,8 +45,9 @@ class PowerLossModel(Model):
         steel_area              = self.declare_variable('steel_area')
         motor_length            = self.declare_variable('motor_length')
 
-        eddy_current_loss = np.pi**2 / 6 * motor_length * avg_flux_influence_ec * frequency**2 * \
-            lamination_thickness**2 * steel_conductivity
+        # eddy_current_loss = np.pi**2 / 6 * motor_length * avg_flux_influence_ec * frequency**2 * \
+        #     lamination_thickness**2 * steel_conductivity
+        eddy_current_loss = 2 * np.pi**2 * frequency**2 * motor_length * avg_flux_influence_ec * 0.07
 
         eddy_current_loss = self.register_output(
             name='eddy_current_loss',
@@ -55,26 +58,12 @@ class PowerLossModel(Model):
         steel_hysteresis_coeff  = self.declare_variable('steel_hysteresis_coeff', val=1.91)
         avg_flux_influence_h    = self.declare_variable('avg_flux_influence_h')
 
-        hysteresis_loss = steel_hysteresis_coeff * motor_length * avg_flux_influence_h * frequency
+        # hysteresis_loss = steel_hysteresis_coeff * motor_length * avg_flux_influence_h * frequency
+        hysteresis_loss = 2*np.pi*frequency*55*motor_length*avg_flux_influence_h
 
         hysteresis_loss = self.register_output(
             name='hysteresis_loss',
             var=hysteresis_loss
-        )
-
-        # PM LOSSES
-        magnet_area             = self.declare_variable('magnet_area')
-        magnet_width            = self.declare_variable('magnet_width')
-        magnet_resistivity      = self.declare_variable('magnet_resistivity', val=140e-6)
-        avg_flux_influence_pm   = self.declare_variable('avg_flux_influence_pm')
-        
-
-        magnet_loss     = motor_length * magnet_width**2 * avg_flux_influence_pm * frequency**2 \
-            / (12 * magnet_resistivity)
-
-        magnet_loss     = self.register_output(
-            name='magnet_loss',
-            var=magnet_loss
         )
 
         # WINDAGE LOSSES

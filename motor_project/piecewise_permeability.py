@@ -50,14 +50,15 @@ if __name__ == '__main__':
     B_data      = data[:,1]
 
     B_cont = np.linspace(0., 3, 2000) #X input (B values)
-    plt.plot(B_data, B_data/H_data / (4e-7 * np.pi), 'k*', markersize=10)
-    plt.plot(B_cont, linearPortion(B_cont),  'r', linewidth = 3)
-    plt.plot(B_cont, cubicPortion(B_cont), 'b', linewidth = 3)
-    plt.plot(B_cont, expDecayPortion(B_cont), 'g', linewidth = 3)
+    plt.plot(B_data, B_data/H_data / (4e-7 * np.pi), 'k*', markersize=10, label='Data')
+    plt.plot(B_cont, linearPortion(B_cont),  'r', linewidth = 3, label='Linear')
+    plt.plot(B_cont, cubicPortion(B_cont), 'b', linewidth = 3, label='Cubic')
+    plt.plot(B_cont, expDecayPortion(B_cont), 'g', linewidth = 3, label='Exp Decay')
     plt.grid()
     plt.xlabel('B (T)')
     plt.ylabel('mu_r (Relative Permeability)')
     plt.xlim([0, 3])
     plt.ylim([0, 5000])
+    plt.legend()
 
     plt.show()

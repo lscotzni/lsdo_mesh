@@ -470,7 +470,8 @@ class MotorFEA(object):
         ALE.move(self.mesh, disp)
 
 if __name__ == "__main__":
-    iq                  = 282.2 # 282.2
+    iq                  = 282.2  / 0.00016231 # 282.2
+    # iq                  = 0.0001
 
 #    f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
 #    old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
@@ -480,11 +481,11 @@ if __name__ == "__main__":
 #    edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
 #    f.close()
 
-    f = open('coarse_mesh_Ru/init_edge_coords.txt', 'r+')
+    f = open('edge_deformation_data/init_edge_coords_1.txt', 'r+')
     old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
 
-    f = open('coarse_mesh_Ru/edge_coord_deltas.txt', 'r+')
+    f = open('edge_deformation_data/edge_coord_deltas_1.txt', 'r+')
     edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
     f.close()
     
@@ -494,12 +495,12 @@ if __name__ == "__main__":
     # the code that creates the mesh file
     # old_edge_coords = getInitialEdgeCoords()
 #    problem = MotorFEA(mesh_file="mesh_files/motor_mesh_1",
-    problem = MotorFEA(mesh_file="coarse_mesh_Ru/motor_mesh_coarse_1",
+    problem = MotorFEA(mesh_file="mesh_files/motor_mesh_1",
                                 old_edge_coords=old_edge_coords)
     
     problem.edge_deltas = 0.1*edge_deltas
     problem.iq.assign(Constant(float(iq)))
-    problem.solveMagnetostatic(report=False)
+    problem.solveMagnetostatic(report=True)
     
     f = open('A_z_air_gap_coords_1.txt', 'r+')
     A_z_air_gap_coords = np.fromstring(f.read(), dtype=float, sep=' ')
@@ -510,11 +511,11 @@ if __name__ == "__main__":
     print(A_z_air_gap)
     M = problem.extractAzAirGapDerivatives()
     
-    problem.solveMeshMotion(report=True)
+    # problem.solveMeshMotion(report=True)
     problem.solveMagnetostatic(report=False)
     problem.moveMesh(problem.uhat)
-    plot(problem.mesh)
-    plt.show()
+    # plot(problem.mesh)
+    
     print("for Eddy current loss:")
     print(problem.calcFluxInfluence(n=2, subdomains=problem.ec_loss_subdomain))
     problem.calcFluxInfluenceDerivatives(n=2, subdomains=problem.ec_loss_subdomain)
@@ -525,6 +526,9 @@ if __name__ == "__main__":
     print(problem.calcFluxInfluence(n=2, subdomains=problem.pm_loss_subdomain))
     problem.calcFluxInfluenceDerivatives(n=2, subdomains=problem.pm_loss_subdomain)
     problem.moveMesh(problem.uhat)
+    print(problem.calcAreas())
+    plot(problem.B, linewidth=10)
+    plt.show()
     vtkfile_A_z = File('solutions/Magnetic_Vector_Potential.pvd')
     vtkfile_B = File('solutions/Magnetic_Flux_Density.pvd')
     vtkfile_A_z << problem.A_z

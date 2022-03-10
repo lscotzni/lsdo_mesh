@@ -8,51 +8,47 @@ class ElectricalModel(Model): # could also call Battery Model?
     def initialize(self):
         self.parameters.declare('theta')
         self.parameters.declare('flux_linkage_abc')
+        self.parameters.declare('flux_linkage_sign')
+        self.parameters.declare('instance')
 
     def define(self):
         theta               = self.parameters['theta']
-
+        flux_linkage_sign   = self.parameters['flux_linkage_sign']  # formatted as [B A C]
+        instance            = self.parameters['instance']
 
         # -------------------- INPUTS TO MODEL --------------------
         p = 12
         # theta           = self.create_input(name='theta', val=0)
-        theta           = self.declare_variable(name='theta', val=theta)
-        omega           = self.declare_variable(name='omega')
+        theta           = self.declare_variable(name='theta_{}'.format(instance), val=theta)
         frequency       = self.declare_variable(name='frequency')
 
         motor_length    = self.declare_variable(name='motor_length', shape=(1,))
-        num_windings    = self.declare_variable(name='num_windings', shape=(1,))
-        winding_area    = self.declare_variable(name='winding_area')
-        slot_fill_factor    = self.declare_variable(name='slot_fill_factor', val=0.6)
-        copper_resistivity  = self.declare_variable(name='copper_resistivity', val=1.68e-8)
+        wire_resistance = self.declare_variable('wire_resistance')
+        num_windings    = self.declare_variable('num_windings')
 
         # flux_linkage_abc  = self.create_input(name='flux_linkage_abc', shape=(3,))
-        flux_linkage_a_i  = self.declare_variable(name='flux_linkage_a_i', shape=(1,))
-        flux_linkage_b_i  = self.declare_variable(name='flux_linkage_b_i', shape=(1,))
-        flux_linkage_c_i  = self.declare_variable(name='flux_linkage_c_i', shape=(1,))
+        flux_linkage_a_i  = self.declare_variable(name='flux_linkage_a_i_{}'.format(instance), shape=(1,))
+        flux_linkage_b_i  = self.declare_variable(name='flux_linkage_b_i_{}'.format(instance), shape=(1,))
+        flux_linkage_c_i  = self.declare_variable(name='flux_linkage_c_i_{}'.format(instance), shape=(1,))
 
         flux_linkage_abc = self.create_output(
-            name='flux_linkage_abc',
+            name='flux_linkage_abc_{}'.format(instance),
             shape=(3,)
         )
-        flux_linkage_abc[0] = flux_linkage_a_i * motor_length * num_windings
-        flux_linkage_abc[1] = flux_linkage_b_i * motor_length * num_windings
-        flux_linkage_abc[2] = flux_linkage_c_i * motor_length * num_windings
-        # flux_linkage_abc[0] = flux_linkage_a_i * motor_length
-        # flux_linkage_abc[1] = flux_linkage_b_i * motor_length
-        # flux_linkage_abc[2] = flux_linkage_c_i * motor_length
-        
-        wire_resistance = copper_resistivity * motor_length / (winding_area * slot_fill_factor) * 12. # on a per-phase basis
-        wire_resistance = self.register_output(
-            name='wire_resistance',
-            var = wire_resistance
-        )
 
+        flux_linkage_abc[0] = flux_linkage_a_i * motor_length / 2 * num_windings
+        flux_linkage_abc[1] = flux_linkage_b_i * motor_length / 2 * num_windings
+        flux_linkage_abc[2] = flux_linkage_c_i * motor_length / 2 * num_windings
+
+        # flux_linkage_abc[0] = flux_linkage_a_i * motor_length / 2
+        # flux_linkage_abc[1] = flux_linkage_b_i * motor_length / 2
+        # flux_linkage_abc[2] = flux_linkage_c_i * motor_length / 2
+        
         # -------------------- DQ TRANSFORM MATRICES --------------------
         transform_matrix_forward = self.create_output(
-            name='transform_matrix_forward',
+            name='transform_matrix_forward_{}'.format(instance),
             shape=(2,3),
-        )
+        ) # MOVE THIS VARIABLE OUTSIDE BECAUSE THIS WON'T CHANGE WITH EACH INSTANCE
 
         transform_matrix_forward[0] = 2/3 * csdl.cos(theta)
         transform_matrix_forward[1] = 2/3 * csdl.cos(theta - 2*np.pi/3)
@@ -62,34 +58,30 @@ class ElectricalModel(Model): # could also call Battery Model?
         transform_matrix_forward[5] = -2/3 * csdl.sin(theta + 2*np.pi/3)
 
         transform_matrix_reverse = self.register_output(
-            name='transform_matrix_reverse',
+            name='transform_matrix_reverse_{}'.format(instance),
             var= 3/2  *  csdl.transpose(transform_matrix_forward)
-        )
+        ) # MOVE THIS VARIABLE OUTSIDE BECAUSE THIS WON'T CHANGE WITH EACH INSTANCE
 
         # -------------------- DQ FLUX LINKAGE --------------------
         flux_linkage_dq = self.register_output(
-            name='flux_linkage_dq',
+            name='flux_linkage_dq_{}'.format(instance),
             var=csdl.matvec(transform_matrix_forward, flux_linkage_abc)
         )
 
         # -------------------- DQ PHASE CURRENT --------------------
-        # phase_current_dq = self.register_output(
-        #     name='phase_current_dq',
-        #     var=csdl.matvec(transform_matrix_forward, phase_current_abc)
-        # )
         phase_current_dq = self.declare_variable(
             name='phase_current_dq',
             shape=(2,),
         )
 
         phase_current_abc  = self.register_output(
-            name='phase_current_abc', 
+            name='phase_current_abc_{}'.format(instance), 
             var=csdl.matvec(transform_matrix_reverse, phase_current_dq)
         )
 
         # -------------------- DQ PHASE VOLTAGE MATRIX --------------------
         phase_voltage_dq = self.create_output(
-            name='phase_voltage_dq',
+            name='phase_voltage_dq_{}'.format(instance),
             val=0.,
             shape=(2,)
         )
@@ -98,20 +90,21 @@ class ElectricalModel(Model): # could also call Battery Model?
 
         # -------------------- ABC PHASE VOLTAGE MATRIX --------------------
         phase_voltage_abc = self.create_output(
-            name='phase_voltage_abc',
+            name='phase_voltage_abc_{}'.format(instance),
             val=0.,
             shape=(3,)
         )
         phase_voltage_abc[:] = csdl.matvec(transform_matrix_reverse, phase_voltage_dq)
 
         input_power = self.register_output(
-            name='input_power',
+            name='input_power_{}'.format(instance),
             # var=csdl.dot(phase_voltage_abc, phase_current_abc)
             var=3/2 * csdl.dot(phase_voltage_dq, phase_current_dq)
         )
 
         electromagnetic_torque = self.register_output(
-            name='electromagnetic_torque',
+            name='electromagnetic_torque_{}'.format(instance),
+            # var=3/2*p/2*(flux_linkage_dq[0]*phase_current_dq[1] - flux_linkage_dq[1]*phase_current_dq[0])
             var=3/2*p/2*(flux_linkage_dq[0]*phase_current_dq[1] - flux_linkage_dq[1]*phase_current_dq[0])
         )
 

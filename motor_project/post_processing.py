@@ -8,18 +8,21 @@ from post_processing_dir.efficiency_model import EfficiencyModel
 from post_processing_dir.electrical_model import ElectricalModel
 from post_processing_dir.power_loss_model import PowerLossModel
 from post_processing_dir.mass_model import MassModel
-from post_processing_dir.vector_potential_model import VectorPotentialModel
+from post_processing_dir.vector_potential_model_new import VectorPotentialModel
 from post_processing_dir.torque_loss_model import TorqueLossModel
 from post_processing_dir.time_average_model import TimeAverageModel
 
-from A_z_air_gap_model import AzAirGapModel
 from area_model import AreaModel
-from flux_influence_ec_loss_model import FluxInfluenceECModel
-from flux_influence_hysteresis_loss_model import FluxInfluenceHModel
-from flux_influence_pm_loss_model import FluxInfluencePMModel
-
 from magnetic_states_model import MagneticStatesModel
 
+from A_z_air_gap_model import AzAirGapModel
+from flux_influence_ec_loss_model import FluxInfluenceECModel
+from flux_influence_hysteresis_loss_model import FluxInfluenceHModel
+
+# # IMPORTS BELOW ARE CustomExplicitOperation FOR MANUAL FUNCTIONS
+# from A_z_air_gap_model import AzAirGap
+# from flux_influence_ec_loss_model import FluxInfluenceEC
+# from flux_influence_hysteresis_loss_model import FluxInfluence
 
 
 from motor_fea import *
@@ -36,12 +39,28 @@ class PostProcessingModel(Model):
     def initialize(self):
         self.parameters.declare('motor_length')
         self.parameters.declare('omega')
-        self.parameters.declare('phase_current_dq')
         self.parameters.declare('current_amplitude')
         self.parameters.declare('fea_list')
         self.parameters.declare('frequency')
         self.parameters.declare('angles')
 
+    def flux_influence_EC_function(self, fea):
+        # A_z     = fea.A_z.vector().get_local()
+        # uhat    = fea.uhat.vector().get_local()
+        e  = FluxInfluenceEC(fea=fea)
+        B_influence_ec = csdl.custom(A_z, uhat, op=e)
+        return B_influence_ec
+
+    def flux_influence_H_function(self, A_z, uhat, fea):
+        e  = FluxInfluenceH(fea=fea)
+        B_influence_h = csdl.custom(A_z, uhat, op=e)
+        return B_influence_h
+
+    def air_gap_A_z_function(self, A_z, fea):
+        e  = AzAirGap(fea=self.fea)
+        A_z_air_gap = csdl.custom(A_z, op=e)
+        return A_z_air_gap
+    
     # def my_function(self, A_z, uhat, fea):
     #     e = FluxInfluenceEC(fea=self.fea)
     #     B_influence_ec = csdl.custom(A_z, uhat, op=e)
@@ -52,80 +71,89 @@ class PostProcessingModel(Model):
         motor_length        = self.parameters['motor_length']
         omega               = self.parameters['omega']
         frequency           = self.parameters['frequency']
-        phase_current_dq_i  = self.parameters['phase_current_dq']
         current_amplitude_i = self.parameters['current_amplitude']
         fea_list            = self.parameters['fea_list']
         angles              = self.parameters['angles']
         instances           = len(angles)
 
-        motor_length        = self.declare_variable(
-            name='motor_length',
-            val=motor_length
-        )
-        omega               = self.declare_variable(
-            name='omega',
-            val=omega
-        )
-
-        frequency           = self.declare_variable(
-            name='frequency',
-            val=frequency
-        )
-        
-        current_amplitude   = self.declare_variable(
-            name='current_amplitude',
-            val=current_amplitude_i,
-            shape=(1,)
-        )
-
-        phase_current_dq    = self.create_output(
-            name='phase_current_dq',
-            val=0.,
-            shape=(2,),
-        )
-
+        motor_length        = self.declare_variable('motor_length', motor_length)
+        omega               = self.declare_variable('omega', omega)
+        frequency           = self.declare_variable('frequency', frequency)
+        current_amplitude   = self.declare_variable('current_amplitude', current_amplitude_i)
+        phase_current_dq    = self.create_output('phase_current_dq', val=0., shape=(2,))
         phase_current_dq[1] = current_amplitude
-        
-        num_windings = self.declare_variable(name='num_windings', shape=(1,), val=13.)
-        
-        # RU'S FEniCS MODELS
+
+        # RU'S FEniCS AREA MODEL
         area_model          = self.add(AreaModel(fea=fea_list[0]), name='area_model')
+        
+        # RESISTANCE CALCULATION
+        num_windings        = self.declare_variable(name='num_windings', shape=(1,), val=13.)
+        copper_resistivity  = self.declare_variable(name='copper_resistivity', val=1.68e-8)
+        slot_fill_factor    = self.declare_variable('slot_fill_factor', val=0.6)
+        winding_area        = self.declare_variable(name='winding_area') # coming out of area_model above
+
+        wire_resistance = copper_resistivity * 12 * num_windings * motor_length / (winding_area * slot_fill_factor /  num_windings) # on a per-phase basis
+        wire_resistance = self.register_output(
+            name='wire_resistance',
+            var = wire_resistance
+        ) # MOVE THIS VARIABLE OUTSIDE BECAUSE THIS WON'T CHANGE WITH EACH INSTANCE
+
+        flux_linkage_sign = [  # formatted as [B A C]
+            [1, 0, 1],
+            [1, 0, 1], # B is zero here
+            [1, 0, 1],
+            [1, 0, 1], # A is zero here
+            [1, 0, 1],
+            [1, 0, 1], # C is zero here
+        ]
+        
         
         for i in range(instances):
             # self.register_output(
-            #     'flux_influence_ec_model_{}'.format(i+1),
-            #     self.my_function(A_z, uhat, fea_list[i])
+            #     'flux_influence_ec_{}'.format(i+1),
+            #     self.flux_influence_EC_function(A_z, uhat, fea_list[i])
             # ) # alternate way of setting  up variable
-            flux_influence_ec_model = self.add(FluxInfluenceECModel(fea=fea_list[i]), name='flux_influence_ec_model_{}'.format(i+1), promotes=[])
-            flux_influence_h_model  = self.add(FluxInfluenceHModel(fea=fea_list[i]), name='flux_influence_h_model_{}'.format(i+1), promotes=[])
-            flux_influence_pm_model = self.add(FluxInfluencePMModel(fea=fea_list[i]), name='flux_influence_pm_model_{}'.format(i+1), promotes=[])
-            A_z_input           = self.declare_variable(name='A_z_{}_input'.format(i+1), val=fea_list[i].A_z.vector().get_local())
 
-            A_z_air_gap_model   = self.add(AzAirGapModel(fea=fea_list[i]), name='A_z_air_gap_model_{}'.format(i+1), promotes=[])
-            vector_pot_model    = self.add(VectorPotentialModel(), name='vector_pot_model_{}'.format(i+1), promotes=[])
-            electrical_model    = self.add(ElectricalModel(theta=angles[i]), name='electrical_model_{}'.format(i+1), promotes=[])
+            # self.register_output(
+            #     'flux_influence_h_{}'.format(i+1),
+            #     self.flux_influence_H_function(A_z, uhat, fea_list[i])
+            # )
+
+            # self.register_output(
+            #     'A_z_air_gap{}'.format(i+1),
+            #     self.air_gap_A_z_function(A_z, fea_list[i])
+            # )
+
+            flux_influence_ec_model = self.add(FluxInfluenceECModel(fea=fea_list[i]), name='flux_influence_ec_model_{}'.format(i), promotes=[])
+            flux_influence_h_model  = self.add(FluxInfluenceHModel(fea=fea_list[i]), name='flux_influence_h_model_{}'.format(i), promotes=[])
+
+            A_z_air_gap_model   = self.add(AzAirGapModel(fea=fea_list[i]), name='A_z_air_gap_model_{}'.format(i), promotes=[])
+            vector_pot_model    = self.add(VectorPotentialModel(magnet_ref_dir=flux_linkage_sign[i], instance=i), name='vector_pot_model_{}'.format(i))
+            electrical_model    = self.add(ElectricalModel(theta=angles[i], flux_linkage_sign=flux_linkage_sign[i], instance=i), name='electrical_model_{}'.format(i))
 
         time_average_model  = self.add(TimeAverageModel(instances=instances), name='time_average_model')
 
         # SET CONNECTIONS
         for i in range(instances):
-            self.declare_variable('B_influence_ec_{}'.format(i+1))
-            self.declare_variable('B_influence_hysteresis_{}'.format(i+1))
-            self.declare_variable('B_influence_pm_{}'.format(i+1))
+            self.declare_variable('B_influence_ec_{}'.format(i)) 
+            self.declare_variable('B_influence_h_{}'.format(i))
 
             # FLUX INFLUENCE CONNECTIONS
-            self.connect('flux_influence_ec_model_{}.B_influence_ec'.format(i+1),'B_influence_ec_{}'.format(i+1))
-            self.connect('flux_influence_h_model_{}.B_influence_hysteresis'.format(i+1),'B_influence_hysteresis_{}'.format(i+1))
-            self.connect('flux_influence_pm_model_{}.B_influence_pm'.format(i+1),'B_influence_pm_{}'.format(i+1))
+            self.connect('flux_influence_ec_model_{}.B_influence_ec'.format(i),'B_influence_ec_{}'.format(i))
+            self.connect('flux_influence_h_model_{}.B_influence_h'.format(i),'B_influence_h_{}'.format(i))
+
+            # 
 
             # ELECTRICAL MODEL 
-            # self.connect('phase_current_dq_{}'.format(i+1), 'electrical_model_{}.phase_current_dq'.format(i+1))
-            self.connect('phase_current_dq', 'electrical_model_{}.phase_current_dq'.format(i+1))
-            self.connect('A_z_air_gap_model_{}.A_z_air_gap'.format(i+1), 'vector_pot_model_{}.A_z_air_gap'.format(i+1))
-            self.connect('vector_pot_model_{}.flux_linkage_a_i'.format(i+1), 'electrical_model_{}.flux_linkage_a_i'.format(i+1))
-            self.connect('vector_pot_model_{}.flux_linkage_b_i'.format(i+1), 'electrical_model_{}.flux_linkage_b_i'.format(i+1))
-            self.connect('vector_pot_model_{}.flux_linkage_c_i'.format(i+1), 'electrical_model_{}.flux_linkage_c_i'.format(i+1))
-            self.connect('electrical_model_{}.electromagnetic_torque'.format(i+1),'electromagnetic_torque_{}'.format(i+1))
+            # self.connect('phase_current_dq', 'electrical_model_{}.phase_current_dq'.format(i+1))
+            
+            # self.connect('A_z_air_gap_model_{}.A_z_air_gap'.format(i), 'vector_pot_model_{}.A_z_air_gap_{}'.format(i,i))
+            self.connect('A_z_air_gap_model_{}.A_z_air_gap'.format(i), 'A_z_air_gap_{}'.format(i))
+            # self.connect('vector_pot_model_{}.flux_linkage_a_i'.format(i+1), 'electrical_model_{}.flux_linkage_a_i'.format(i+1))
+            # self.connect('vector_pot_model_{}.flux_linkage_b_i'.format(i+1), 'electrical_model_{}.flux_linkage_b_i'.format(i+1))
+            # self.connect('vector_pot_model_{}.flux_linkage_c_i'.format(i+1), 'electrical_model_{}.flux_linkage_c_i'.format(i+1))
+            # self.connect('electrical_model_{}.electromagnetic_torque'.format(i+1),'electromagnetic_torque_{}'.format(i+1))
+            # self.connect('electrical_model_{}.input_power'.format(i+1),'input_power_{}'.format(i+1))
 
         # SIMPLE P-P MODELS
         power_loss_model    = self.add(PowerLossModel(), name='power_loss_model')
@@ -135,31 +163,29 @@ class PostProcessingModel(Model):
 
 
 if __name__ ==  '__main__':
+    slot_fill_factor    = 0.6
+    num_windings        = 13
     t_start             = time.time()
-    # rpm                 = 5000
     # rpm_list            = np.arange(1000, 6000 + 1, 500)
-    # current_list        = np.arange(50, 300 + 1, 50)
-    current_list        = np.array([200])
     rpm_list            = np.array([1000])
+    # current_list        = np.arange(50, 300 + 1, 50)
+    # current_list        = np.array([280])
+    current_list        = np.array([0.0001])
+    
+    
     p                   = 12
     t                   = 0
     motor_length        = 70.e-3
-    angles              = np.arange(0,30,5) * np.pi / 180
-    instances           = len(angles)
-    instances           = 2
+    angle_shift         = 2.5
+    angles              = (angle_shift + np.arange(0,30,5)) * np.pi / 180
+    # instances           = len(angles)
+    instances           = 1
 
     efficiency_map      = np.zeros((len(current_list), len(rpm_list)))
     input_power_map     = np.zeros((len(current_list), len(rpm_list)))
     output_power_map    = np.zeros((len(current_list), len(rpm_list)))
     torque_array        = np.zeros((len(current_list),))
-
-    f = open('edge_deformation_data/init_edge_coords.txt', 'r+')
-    old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
-    f.close()
-
-    f = open('edge_deformation_data/edge_coord_deltas.txt', 'r+')
-    edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
-    f.close()
+    flux_linkage_abc    = np.zeros((instances, 3))
 
     for n, current_amplitude in enumerate(current_list):
         print('current instance:', n)
@@ -176,17 +202,25 @@ if __name__ ==  '__main__':
             print('-------')
             print('fea instance:', i)
             print('-------')
-            angle = 0.0 + i * 5 * np.pi / 180
-#            i_abc               = [
-#                iq * np.sin(angle),
-#                iq * np.sin(angle + 2*np.pi/3),
-#                iq * np.sin(angle - 2*np.pi/3),
-#            ]
+            # angle = 0.0 + i * 5 * np.pi / 180
+            angle = angles[i] * p / 2
+            # i_abc               = [
+            #     iq * np.sin(angle),
+            #     iq * np.sin(angle + 2*np.pi/3),
+            #     iq * np.sin(angle - 2*np.pi/3),
+            # ]
+            f = open('edge_deformation_data/init_edge_coords_{}.txt'.format(i+1), 'r+')
+            old_edge_coords = np.fromstring(f.read(), dtype=float, sep=' ')
+            f.close()
+
+            f = open('edge_deformation_data/edge_coord_deltas_{}.txt'.format(i+1), 'r+')
+            edge_deltas = np.fromstring(f.read(), dtype=float, sep=' ')
+            f.close()
 
             fea = MotorFEA(mesh_file="mesh_files/motor_mesh_{}".format(i+1),
                                 old_edge_coords=old_edge_coords)
             fea.angle = angle
-            updateR(fea.iq, iq)
+            updateR(fea.iq, iq / (0.00016231 / num_windings))
             fea.solveMagnetostatic(report=True)
             
 
@@ -198,6 +232,13 @@ if __name__ ==  '__main__':
             fea.A_z_air_gap_indices = fea.locateAzIndices(A_z_air_gap_coords)
             print('A_z air gap values: ', fea.extractAzAirGap())
             fea_list.append(fea)
+
+            # SAVING DATA FOR TESTING
+            if False:
+                vtkfile_A_z = File('post_proc_viz/Magnetic_Vector_Potential_20A_{}.pvd'.format(i))
+                vtkfile_B = File('post_proc_viz/Magnetic_Flux_Density_20A_{}.pvd'.format(i))
+                vtkfile_A_z << fea.A_z
+                vtkfile_B << fea.B
 
         # end loop for instances
         # exit()
@@ -212,37 +253,28 @@ if __name__ ==  '__main__':
             aaa = PostProcessingModel(
                 motor_length=motor_length,
                 omega=omega,
-                phase_current_dq=i_dq,
                 current_amplitude=iq,
                 fea_list=fea_list,
                 frequency=freq,
-                angles=angles[:instances]
+                angles=np.array(angles[:instances]) * p / 2
             )
 
             sim = Simulator(aaa)
             for i in range(instances):
-                sim['A_z_air_gap_model_{}.A_z'.format(i+1)] = fea_list[i].A_z.vector().get_local()
-                sim['flux_influence_ec_model_{}.A_z'.format(i+1)] = fea_list[i].A_z.vector().get_local()
-                sim['flux_influence_ec_model_{}.uhat'.format(i+1)] = fea_list[i].uhat.vector().get_local()
-                sim['flux_influence_h_model_{}.A_z'.format(i+1)] = fea_list[i].A_z.vector().get_local()
-                sim['flux_influence_h_model_{}.uhat'.format(i+1)] = fea_list[i].uhat.vector().get_local()
-                sim['flux_influence_pm_model_{}.A_z'.format(i+1)] = fea_list[i].A_z.vector().get_local()
-                sim['flux_influence_pm_model_{}.uhat'.format(i+1)] = fea_list[i].uhat.vector().get_local()
+                sim['A_z_air_gap_model_{}.A_z'.format(i)] = fea_list[i].A_z.vector().get_local()
+                sim['flux_influence_ec_model_{}.A_z'.format(i)] = fea_list[i].A_z.vector().get_local()
+                sim['flux_influence_ec_model_{}.uhat'.format(i)] = fea_list[i].uhat.vector().get_local()
+                sim['flux_influence_h_model_{}.A_z'.format(i)] = fea_list[i].A_z.vector().get_local()
+                sim['flux_influence_h_model_{}.uhat'.format(i)] = fea_list[i].uhat.vector().get_local()
+
             sim.run()
-            # print('---')
-            # print('A_z_air_gap:', sim['A_z_air_gap'])
-            # print('A_z_delta_array:', sim['A_z_delta_array'])
-            # print('wire resistance:', sim['wire_resistance'])
-            # print('dq voltage:',sim['phase_voltage_dq'])
-            # print('abc voltage:',sim['phase_voltage_abc'])
-            # print('dq current:',sim['phase_current_dq'])
-            # print('abc current:',sim['phase_current_abc'])
-            # print('abc flux linkage:', sim['flux_linkage_abc'])
-            # print('dq flux linkage:', sim['flux_linkage_dq'])
-            # print('input power:', sim['input_power'])
+
+            if m == 0:
+                for i in range(instances):
+                    flux_linkage_abc[i,:] = sim['electrical_model_{}.flux_linkage_abc_{}'.format(i,i)] 
 
             print('-----')
-            print('flux_influence_ec_model_1:', sim['flux_influence_ec_model_1.B_influence_ec']) #  comes out as zero for some reason
+            print('flux_influence_ec_model_0:', sim['flux_influence_ec_model_0.B_influence_ec']) #  comes out as zero for some reason
             print('-----')
 
             print('-----')
@@ -250,28 +282,44 @@ if __name__ ==  '__main__':
             print('flux_influence_h_list:', sim['flux_influence_h_list'])
             print('avg_flux_influence_ec:', sim['avg_flux_influence_ec'])
             print('flux_influence_ec_list:', sim['flux_influence_ec_list'])
-            print('avg_flux_influence_pm:', sim['avg_flux_influence_pm'])
-            print('flux_influence_pm_list:', sim['flux_influence_pm_list'])
             print('-----')
-
+            for i in range(instances):
+                print('EM torque {}'.format(i), sim['electromagnetic_torque_{}'.format(i)])
+                print('Input power {}'.format(i), sim['electrical_model_{}.input_power_{}'.format(i,i)])
+                print('DQ flux linkage {}'.format(i), sim['electrical_model_{}.flux_linkage_dq_{}'.format(i,i)])
+                print('ABC flux linkage {}'.format(i), sim['electrical_model_{}.flux_linkage_abc_{}'.format(i,i)])
+                print('A-phase delta A_z {}'.format(i), sim['vector_pot_model_{}.A_z_delta_A_{}'.format(i,i)])
+                print('B-phase delta A_z {}'.format(i), sim['vector_pot_model_{}.A_z_delta_B_{}'.format(i,i)])
+                print('C-phase delta A_z {}'.format(i), sim['vector_pot_model_{}.A_z_delta_C_{}'.format(i,i)])
+                print('v-pot model flux linkage a: ', sim['vector_pot_model_{}.flux_linkage_a_i_{}'.format(i,i)])
+                print('v-pot model flux linkage a: ', sim['flux_linkage_a_i_{}'.format(i)])
+                print('ABC voltage {}'.format(i), sim['phase_voltage_abc_{}'.format(i,i)])
+                # print('ABC Current {}'.format(i+1), sim['electrical_model_{}.phase_current_abc'.format(i+1)])
+                print('-----')
+            print('avg EM torque:', sim['avg_electromagnetic_torque'])
+            print('-----')
+            print('frequency:', sim['frequency'])
+            print('dq current:',sim['phase_current_dq'])
+            print('skin depth:', sim['wire_skin_depth'])
+            print('wire radius:', sim['wire_radius'])
+            print('AC resistance:', sim['wire_resistance_AC'])
+            print('DC resistance:', sim['wire_resistance'])
             print('output power:', sim['output_power'])
             print('output torque:', sim['output_torque'])
             print('windage_loss:', sim['windage_loss'])
             print('hysteresis_loss:', sim['hysteresis_loss'])
             print('eddy_current_loss:', sim['eddy_current_loss'])
-            print('magnet_loss:', sim['magnet_loss'])
             print('copper_loss:', sim['copper_loss'])
             print('efficiency:', sim['efficiency'])
             print('total mass:', sim['total_mass'])
-            # print('---')
 
             efficiency_map[n, m] = sim['efficiency']
             input_power_map[n, m] = sim['input_power']
             output_power_map[n, m] = sim['output_power']
 
+
         torque_array[n] = sim['output_torque']
 
-    # sim.visualize_implementation()
     xx, yy = np.meshgrid(rpm_list, current_list)
     contour_levels =  np.arange(70, 110  + 1, 10)
 
@@ -286,39 +334,60 @@ if __name__ ==  '__main__':
 
     print('Runtime: ', t_end - t_start)
 
-    plt.figure(1)
-    contours = plt.contour(rpm_list, current_list, efficiency_map, levels=contour_levels)
-    plt.clabel(contours,inline = True, fontsize = 8)
-    plt.xlabel('RPM')
-    plt.ylabel('Current Amplitude (A)')
-    plt.title('Efficiency Map')
+    if False:
+        plt.figure(1)
+        contours = plt.contour(rpm_list, current_list, efficiency_map, levels=contour_levels)
+        plt.clabel(contours,inline = True, fontsize = 8)
+        plt.xlabel('RPM')
+        plt.ylabel('Current Amplitude (A)')
+        plt.title('Efficiency Map')
 
-    plt.figure(2)
-    contoursf = plt.contourf(rpm_list, current_list, efficiency_map, levels=np.arange(0, 120 + 1, 5))
-    plt.clabel(contoursf,inline = True, fontsize = 8, colors='black')
-    plt.xlabel('RPM')
-    plt.ylabel('Current Amplitude (A)')
-    plt.title('Efficiency Map')
+        plt.figure(2)
+        contoursf = plt.contourf(rpm_list, current_list, efficiency_map, levels=np.arange(0, 120 + 1, 5))
+        plt.clabel(contoursf,inline = True, fontsize = 8, colors='black')
+        plt.xlabel('RPM')
+        plt.ylabel('Current Amplitude (A)')
+        plt.title('Efficiency Map')
 
-    plt.figure(3)
-    plt.plot(current_list, torque_array)
-    plt.xlabel('Current Amplitude (A)')
-    plt.ylabel('Torque (N * m)')
-    plt.title('Torque')
+        plt.figure(3)
+        plt.plot(current_list, torque_array)
+        plt.xlabel('Current Amplitude (A)')
+        plt.ylabel('Torque (N * m)')
+        plt.title('Torque')
 
-    plt.figure(4)
-    contoursf = plt.contourf(rpm_list, current_list, input_power_map, levels=np.arange(0, 8000 + 1, 500))
-    plt.clabel(contoursf,inline = True, fontsize = 8, colors='black')
-    plt.xlabel('RPM')
-    plt.ylabel('Current Amplitude (A)')
-    plt.title('Input Power Map')
+        plt.figure(4)
+        contoursf = plt.contourf(rpm_list, current_list, input_power_map, levels=np.arange(0, 8000 + 1, 500))
+        plt.clabel(contoursf,inline = True, fontsize = 8, colors='black')
+        plt.xlabel('RPM')
+        plt.ylabel('Current Amplitude (A)')
+        plt.title('Input Power Map')
 
-    plt.figure(5)
-    contoursf = plt.contourf(rpm_list, current_list, output_power_map, levels=np.arange(0, 8000 + 1, 250))
-    plt.clabel(contoursf,inline = True, fontsize = 8, colors='black')
-    plt.xlabel('RPM')
-    plt.ylabel('Current Amplitude (A)')
-    plt.title('Output Power Map')
+        plt.figure(5)
+        contoursf = plt.contourf(rpm_list, current_list, output_power_map, levels=np.arange(0, 8000 + 1, 250))
+        plt.clabel(contoursf,inline = True, fontsize = 8, colors='black')
+        plt.xlabel('RPM')
+        plt.ylabel('Current Amplitude (A)')
+        plt.title('Output Power Map')
+
+    if True:
+        # for n, current_amplitude in enumerate(current_list):
+        #     plt.figure(6)
+        #     plt.plot(rpm_list, efficiency_map[n,:], label='Current amplitude = {} A'.format(current_amplitude))
+        #     plt.xlabel('RPM')
+        #     plt.ylabel('Efficiency (%)')
+        #     plt.title('RPM vs. Efficiency on Current Amplitude Isolines')
+        #     plt.legend()
+        print(flux_linkage_abc)
+        plt.figure(100)
+        plt.plot(angles[:instances] * 180 / np.pi, flux_linkage_abc[:,0], 'r-*', label='Phase a')
+        plt.plot(angles[:instances] * 180 / np.pi, flux_linkage_abc[:,1], 'g-*',label='Phase b')
+        plt.plot(angles[:instances] * 180 / np.pi, flux_linkage_abc[:,2], 'b-*', label='Phase c')
+        plt.ylabel('Flux linkage')
+        plt.xlabel('Rotor mechanical angle')
+        plt.title('Flux linkage of each phase ({}A)'.format(current_amplitude))
+        plt.grid()
+        plt.legend()
+
 
     plt.show()
         

@@ -726,6 +726,9 @@ class Mesh(object):
                     # might be good to keep this comparison in cartesian coordinates
                     # polar coordinates are tough b/c np.arctan2() returns angle in range [-pi, pi]
                     # pi and -pi represent the same thing in our case but the sign will break the comparison
+                    print(embedded_points)
+                    print(point_coords_to_reorder)
+                    print(self.gmsh_order_point_coords_instances[a])
                     index = np.where(
                         np.linalg.norm(
                             point_coords_to_reorder - self.gmsh_order_point_coords_instances[a],

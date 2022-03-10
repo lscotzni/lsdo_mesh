@@ -4,17 +4,21 @@ from csdl import Model
 from csdl_om import Simulator
 
 class VectorPotentialModel(Model):
+    def initialize(self):
+        self.parameters.declare('instance')
+
     def define(self):
         s       = 36
+        instance = self.parameters['instance']
 
         A_z_air_gap = self.declare_variable(
-            name='A_z_air_gap',
+            name='A_z_air_gap_{}'.format(instance),
             shape=(s,),
             # val=np.arange(1,37)
         )
 
         A_z_delta_array = self.create_output(
-            name='A_z_delta_array',
+            name='A_z_delta_array_{}'.format(instance),
             shape=(s,)
         )
 
@@ -25,25 +29,27 @@ class VectorPotentialModel(Model):
             A_z_delta_array[s - 3 + i] = A_z_air_gap[i] - A_z_air_gap[s - 3 + i]
 
         A_z_delta_array_abs = self.create_output(
-            name='A_z_delta_array_abs',
+            name='A_z_delta_array_abs_{}'.format(instance),
             shape=(s,)
         )
 
         for i in range(s):
             A_z_delta_array_abs[i] = (((A_z_delta_array[i])**2)**(1/2))
+
+        # A_z_delta_array_abs[:]     = A_z_delta_array[:]
             
         A_z_delta_A = self.create_output(
-            name='A_z_delta_A',
+            name='A_z_delta_A_{}'.format(instance),
             shape=(int(s/3),)
         )
 
         A_z_delta_B = self.create_output(
-            name='A_z_delta_B',
+            name='A_z_delta_B_{}'.format(instance),
             shape=(int(s/3),)
         )
 
         A_z_delta_C = self.create_output(
-            name='A_z_delta_C',
+            name='A_z_delta_C_{}'.format(instance),
             shape=(int(s/3),)
         )
 
@@ -52,17 +58,17 @@ class VectorPotentialModel(Model):
         A_z_delta_C[:]      = A_z_delta_array_abs[2::3]
 
         flux_linkage_a_i    = self.register_output(
-            name='flux_linkage_a_i',
+            name='flux_linkage_a_i_{}'.format(instance),
             var=csdl.sum(A_z_delta_A)
         )
 
         flux_linkage_b_i    = self.register_output(
-            name='flux_linkage_b_i',
+            name='flux_linkage_b_i_{}'.format(instance),
             var=csdl.sum(A_z_delta_B)
         )
 
         flux_linkage_c_i    = self.register_output(
-            name='flux_linkage_c_i',
+            name='flux_linkage_c_i_{}'.format(instance),
             var=csdl.sum(A_z_delta_C)
         )
 

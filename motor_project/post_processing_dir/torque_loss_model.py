@@ -10,9 +10,8 @@ class TorqueLossModel(Model):
         hysteresis_loss             = self.declare_variable('hysteresis_loss')
         windage_loss                = self.declare_variable('windage_loss')
         eddy_current_loss           = self.declare_variable('eddy_current_loss')
-        magnet_loss                 = self.declare_variable('magnet_loss')
 
-        torque_loss                 = (hysteresis_loss + windage_loss + eddy_current_loss + magnet_loss) / omega
+        torque_loss                 = (hysteresis_loss + windage_loss + eddy_current_loss) / omega
 
         torque_loss     = self.register_output(
             name='torque_loss',

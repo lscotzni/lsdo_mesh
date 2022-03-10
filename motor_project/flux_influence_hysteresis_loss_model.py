@@ -23,14 +23,14 @@ class FluxInfluenceHModel(Model):
                         shape=(self.input_size_uhat,),
                         val=0.0)
         e = FluxInfluenceH(fea=self.fea)
-        B_influence_hysteresis = csdl.custom(A_z, uhat, op=e)
-        self.register_output('B_influence_hysteresis', B_influence_hysteresis)
+        B_influence_h = csdl.custom(A_z, uhat, op=e)
+        self.register_output('B_influence_h', B_influence_h)
 
 
 class FluxInfluenceH(CustomExplicitOperation):
     """
     input: A_z, uhat
-    output: B_influence_hysteresis = B**2*dx(subdomains)
+    output: B_influence_h = B**2*dx(subdomains)
     """
     def initialize(self):
         self.parameters.declare('fea')
@@ -50,23 +50,23 @@ class FluxInfluenceH(CustomExplicitOperation):
         uhat = self.add_input('uhat',
                         shape=(self.input_size_uhat,),
                         val=0.0)
-        self.add_output('B_influence_hysteresis')
+        self.add_output('B_influence_h')
         self.declare_derivatives('*', '*')
         
     def compute(self, inputs, outputs):
         update(self.fea.A_z, inputs['A_z'])
         update(self.fea.uhat, inputs['uhat'])
-        B_influence_hysteresis = self.fea.calcFluxInfluence(
+        B_influence_h = self.fea.calcFluxInfluence(
                         n=self.exponent, subdomains=self.subdomains)
-        outputs['B_influence_hysteresis'] = B_influence_hysteresis
+        outputs['B_influence_h'] = B_influence_h
 
     def compute_derivatives(self, inputs, derivatives):
         update(self.fea.A_z, inputs['A_z'])
         update(self.fea.uhat, inputs['uhat'])
         dFdAz, dFduhat = self.fea.calcFluxInfluenceDerivatives(
                         n=self.exponent, subdomains=self.subdomains)
-        derivatives['B_influence_hysteresis', 'A_z'] = dFdAz
-        derivatives['B_influence_hysteresis', 'uhat'] = dFduhat
+        derivatives['B_influence_h', 'A_z'] = dFdAz
+        derivatives['B_influence_h', 'uhat'] = dFduhat
         
 if __name__ == "__main__":
     iq                  = 282.2 / 3
@@ -89,13 +89,13 @@ if __name__ == "__main__":
     sim['A_z'] = fea.A_z.vector().get_local()
     sim['uhat'] = fea.uhat.vector().get_local()
     sim.run()
-    print(" B_influence_hysteresis =", sim['B_influence_hysteresis'])
+    print(" B_influence_h =", sim['B_influence_h'])
 #    fea.solveMeshMotion()   
 #    fea.solveMagnetostatic()
 #    sim['A_z'] = fea.A_z.vector().get_local()
 #    sim['uhat'] = fea.uhat.vector().get_local()
 #    sim.run()
-#    print(" B_influence_hysteresis =", sim['B_influence_hysteresis'])
+#    print(" B_influence_h =", sim['B_influence_h'])
     
     print("CSDL: Running check_partials()...")
     # sim.check_partials()

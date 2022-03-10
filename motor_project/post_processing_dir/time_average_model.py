@@ -19,8 +19,8 @@ class TimeAverageModel(Model):
             shape=(instances,)
         )
 
-        flux_influence_pm_list  = self.create_output(
-            name='flux_influence_pm_list',
+        input_power_list = self.create_output(
+            name='input_power_list',
             shape=(instances,)
         )
 
@@ -30,16 +30,16 @@ class TimeAverageModel(Model):
         )
         
         for i in range(instances):
-            temp_flux_influence_ec  = self.declare_variable('B_influence_ec_{}'.format(i+1))
+            temp_flux_influence_ec  = self.declare_variable('B_influence_ec_{}'.format(i))
             flux_influence_ec_list[i] = temp_flux_influence_ec
 
-            temp_flux_influence_h   = self.declare_variable('B_influence_hysteresis_{}'.format(i+1))
+            temp_flux_influence_h   = self.declare_variable('B_influence_h_{}'.format(i))
             flux_influence_h_list[i] = temp_flux_influence_h
 
-            temp_flux_influence_pm  = self.declare_variable('B_influence_pm_{}'.format(i+1))
-            flux_influence_pm_list[i] = temp_flux_influence_pm
+            temp_input_power        = self.declare_variable('input_power_{}'.format(i))
+            input_power_list[i]     = temp_input_power
 
-            temp_em_torque = self.declare_variable('electromagnetic_torque_{}'.format(i+1))
+            temp_em_torque = self.declare_variable('electromagnetic_torque_{}'.format(i))
             em_torque_list[i] = temp_em_torque
 
         avg_flux_influence_ec   = csdl.average(flux_influence_ec_list)
@@ -54,10 +54,10 @@ class TimeAverageModel(Model):
             var=avg_flux_influence_h
         )
 
-        avg_flux_influence_pm   = csdl.average(flux_influence_pm_list)
-        avg_flux_influence_pm   = self.register_output(
-            name='avg_flux_influence_pm',
-            var=avg_flux_influence_pm
+        avg_input_power         = csdl.average(input_power_list)
+        avg_input_power         = self.register_output(
+            name='avg_input_power',
+            var=avg_input_power
         )
 
         avg_electromagnetic_torque  = csdl.average(em_torque_list)
