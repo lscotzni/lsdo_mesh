@@ -10,6 +10,7 @@ class MeshModel(Model):
         self.parameters.declare('mesh_points')
         self.parameters.declare('ffd_cps')
         self.parameters.declare('num_points')
+        self.parameters.declare('instance')
 
         # STEPS:
         # 1. OPTIMIZER OUTPUTS UPDATED SHAPE PARAMETER VALUES
@@ -22,25 +23,27 @@ class MeshModel(Model):
 
     def define(self):
         
-        ffd_parametrization                 = self.parameters['ffd_parametrization']
-        edge_parametrization                = self.parameters['edge_parametrization']
-        mesh_points                         = self.parameters['mesh_points']
-        ffd_cps                             = self.parameters['ffd_cps']
-        num_points                          = self.parameters['num_points']
+        ffd_parametrization     = self.parameters['ffd_parametrization']
+        edge_parametrization    = self.parameters['edge_parametrization']
+        mesh_points             = self.parameters['mesh_points']
+        ffd_cps                 = self.parameters['ffd_cps']
+        num_points              = self.parameters['num_points']
+        instance                = self.parameters['instance']
 
         # SHAPE PARAMETER CONCATENATION:
         # for loop declaring shape parameters as variables
         # use create_output to initialize the empty shape_parameter_vec vector
         # within for loop, assign different shape parameters to parts of empty shape_parameter_vec
 
-        delta_ffd_cp = self.declare_variable('delta_ffd_cp')
+        delta_ffd_cp = self.declare_variable('delta_ffd_cp', shape=(8,))
+        # NOTE: SHAPES MUST ALWAYS BE SET UP (WILL NOT AUTOMATICALLY BE READ IN CSDL)
         
         # getting deltas of the defined mesh points
         
         delta_mesh_points = csdl.matvec(ffd_parametrization, delta_ffd_cp) 
         
         delta_mesh_points = self.register_output(
-            'delta_mesh_points',
+            'delta_mesh_points_{}'.format(instance),
             var=delta_mesh_points,
             # shape=delta_mesh_points.shape,
         )
@@ -48,22 +51,20 @@ class MeshModel(Model):
         print(delta_mesh_points)
         print(delta_ffd_cp)
         
-
-            
         mesh_instance = self.declare_variable(
-            'mesh_points',
-            val=mesh_points_instances[i],
-            shape=mesh_points_instances[i].shape
+            'mesh_points_{}'.format(instance),
+            val=mesh_points,
+            shape=mesh_points.shape
         )
     
         new_mesh_points = mesh_instance + delta_mesh_points
         new_mesh_points = self.register_output(
-            'new_mesh_points',
+            'new_mesh_points_{}'.format(instance),
             var=new_mesh_points,
             # shape=new_mesh_points.shape
         )
     
-        edge_param_sps_mat = edge_parametrization_instances[i]
+        edge_param_sps_mat = edge_parametrization
         # edge_param_sps_mat = self.declare_variable(
         #     'edge_param_sps_mat_{}'.format(i+1),
         #     val=edge_param_sps_mat,
@@ -76,7 +77,7 @@ class MeshModel(Model):
         )
 
         self.register_output(
-            'new_edge_nodes',
+            'new_edge_nodes_{}'.format(instance),
             new_edge_nodes,
             # new_edge_nodes.shape
         )
@@ -103,18 +104,61 @@ class ShapeParameterModel(Model):
         shape_parametrization               = self.parameters['shape_parametrization']
         # the shape parameter list is coming directly from lsdo_mesh; the user will define the DVs and SPs and connect them,
         # and in here we need to add the SPs as variables and concatenate into a large list looping through the list
-        shape_param_vec = []
-        for i, name in enumerate(shape_parameter_list_input):
-            local_SP = self.declare_variable(name=name) # declaring variable for actual SP
-            for j in range(shape_parameter_index_input[i]):
-                shape_param_vec.append(local_SP) # appending SP variable "n" times based on 'linear' or 'constant'
-                # 'constant': n = 1
-                # 'linear': n = 2
 
-        shape_param_vec = self.declare_variable(
+        # -----
+        # shape_param_vec = []
+        # for i, name in enumerate(shape_parameter_list_input):
+        #     local_SP = self.declare_variable(name=name) # declaring variable for actual SP
+        #     for j in range(shape_parameter_index_input[i]):
+        #         shape_param_vec.append(local_SP) # appending SP variable "n" times based on 'linear' or 'constant'
+        #         # 'constant': n = 1
+        #         # 'linear': n = 2
+        # shape_param_vec     = np.array(shape_param_vec)
+        # print(shape_param_vec.shape)
+        # print(shape_param_vec)
+        # print(shape_parametrization.shape)
+        # print(shape_parametrization)
+        # exit()
+
+        # shape_param_vec = self.declare_variable(
+        #     name='shape_param_vec',
+        #     val=np.array(shape_param_vec),
+        #     shape=(len(shape_param_vec),)
+        # )
+        # ---
+        print(shape_parameter_index_input)
+        print(shape_parameter_list_input)
+        print(shape_parametrization)
+        shape_parameter_total   = int(np.dot(np.ones((len(shape_parameter_list_input),)),shape_parameter_index_input))
+        print(shape_parameter_total)
+        shape_param_vec = self.create_output(
             name='shape_param_vec',
-            val=shape_param_vec
+            shape=(shape_parameter_total,)
         )
+        
+        # counter = 0
+        # for i, name in enumerate(shape_parameter_list_input):
+        #     local_SP = self.declare_variable(name=name) # declaring variable for actual SP
+        #     for j in range(shape_parameter_index_input[i]):
+        #         print(j)
+        #         # shape_param_vec.append(local_SP) # appending SP variable "n" times based on 'linear' or 'constant'
+        #         shape_param_vec[counter] = local_SP
+        #         counter += 1
+
+        counter = 0
+        for i, name in enumerate(shape_parameter_list_input):
+            local_SP    = self.declare_variable(name=name) # declaring variable for actual SP
+            len_SP      = shape_parameter_index_input[i]
+            expanded_local_SP  = csdl.expand(local_SP, (len_SP,))
+            shape_param_vec[counter:counter + len_SP] = expanded_local_SP
+            counter += len_SP
+        # exit()
+
+
+        # shape_parameterization = self.declare_variable(
+        #     name='shape_parametrization',
+        #     val=shape_parametrization
+        # )
         
         # shape_param_vec = self.declare_variable(
         #     name='shape_parameter_vec',
@@ -128,3 +172,4 @@ class ShapeParameterModel(Model):
             var=delta_ffd_cp,
             # shape=(shape_parametrization.shape[0],),
         )
+        # print('delta_ffd_cp shape:', shape_parametrization.shape[0])

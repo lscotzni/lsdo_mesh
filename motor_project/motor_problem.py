@@ -2,8 +2,8 @@
 Definition of the variational form of the motor problem
 """
 from fea_utils import *
-# from piecewise_permeability import *
-from piecewise_permeability_Luca import *
+# from permeability.piecewise_permeability import *
+from permeability.piecewise_permeability_Luca import *
 
 exp_coeff = extractexpDecayCoeff()
 cubic_bounds = extractCubicBounds()

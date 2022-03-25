@@ -17,7 +17,7 @@ class PowerLossModel(Model):
             var=wire_radius
         )
 
-        copper_resistivity      = self.declare_variable('copper_resistivity', val=1.68e-8)
+        copper_resistivity      = self.declare_variable('copper_resistivity')
         copper_permeability     = self.declare_variable('copper_permeability', val=1.256629e-6)
         frequency               = self.declare_variable('frequency')
         wire_resistance         = self.declare_variable('wire_resistance')
@@ -57,9 +57,10 @@ class PowerLossModel(Model):
         # HYSTERESIS LOSS
         steel_hysteresis_coeff  = self.declare_variable('steel_hysteresis_coeff', val=1.91)
         avg_flux_influence_h    = self.declare_variable('avg_flux_influence_h')
+        hysteresis_coeff        = self.declare_variable('hysteresis_coeff', val=55.)
 
         # hysteresis_loss = steel_hysteresis_coeff * motor_length * avg_flux_influence_h * frequency
-        hysteresis_loss = 2*np.pi*frequency*55*motor_length*avg_flux_influence_h
+        hysteresis_loss = 2*np.pi*frequency*hysteresis_coeff*motor_length*avg_flux_influence_h
 
         hysteresis_loss = self.register_output(
             name='hysteresis_loss',
@@ -69,19 +70,33 @@ class PowerLossModel(Model):
         # WINDAGE LOSSES
         air_density         = self.declare_variable('air_density', val=1.204)
         air_viscosity       = self.declare_variable('air_viscosity', val=1.825e-5)
-        rotor_radius        = self.declare_variable('rotor_radius', val = 80.e-3)
-        air_gap_depth       = self.declare_variable('air_gap_depth', val=1.e-3)
+        rotor_radius_o      = self.declare_variable('rotor_radius_outer', val = 80.e-3)
+        stator_radius_i     = self.declare_variable('stator_radius_inner', val = 81.e-3)
         omega               = self.declare_variable('omega')
 
-        azimuthal_vel       = self.register_output(
-            name='azimuthal_vel',
-            var=rotor_radius * omega
+        air_gap_depth       = self.register_output(
+            name='air_gap_depth',
+            var=stator_radius_i - rotor_radius_o
         )
+
+        azimuthal_vel       = self.create_output(
+            name='azimuthal_vel',
+            shape=(1,)
+        )
+
+        azimuthal_vel[0]    = rotor_radius_o**2 * omega / air_gap_depth / (stator_radius_i**2 - rotor_radius_o**2) * \
+            (stator_radius_i**2 * csdl.log(stator_radius_i/rotor_radius_o) - 0.5*(stator_radius_i**2 - rotor_radius_o**2))
 
         air_gap_Re          = air_density * azimuthal_vel * air_gap_depth / air_viscosity
         air_gap_Re          = self.register_output(
             name='air_gap_Re',
             var=air_gap_Re
+        )
+
+        air_gap_Ta  = air_gap_Re**2 * (air_gap_depth/rotor_radius_o)
+        air_gap_Ta  = self.register_output(
+            name='air_gap_Ta',
+            var=air_gap_Ta
         )
 
         friction_coeff      = 0.0152 /  (air_gap_Re)**(0.24)
@@ -90,15 +105,20 @@ class PowerLossModel(Model):
             var=friction_coeff
         )
 
-        windage_loss        = np.pi * air_density * azimuthal_vel**2 * rotor_radius**2 * friction_coeff * motor_length * omega # UNFINISHED
+        # windage_loss        = np.pi * air_density * azimuthal_vel**2 * rotor_radius_o**2 * friction_coeff * motor_length * omega # UNFINISHED
+        windage_loss        = 2 * np.pi * friction_coeff * air_density * omega**3 * rotor_radius_o**4 * motor_length
+
         windage_loss = self.register_output(
             name='windage_loss',
             var=windage_loss
         )
 
+        # BEARING LOSSES
+
+
         # STRAY LOSSES
-        input_power         = self.declare_variable('input_power')
-        stray_loss          = input_power * 0.01
+        avg_input_power     = self.declare_variable('avg_input_power')
+        stray_loss          = avg_input_power * 0.01
 
         stray_loss          = self.register_output(
             name='stray_loss',

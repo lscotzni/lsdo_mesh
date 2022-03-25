@@ -10,7 +10,7 @@ Mesh Generation of 2D Radial Flux PMSM
 #   !!!!!!! NOTE: NEED TO WRITE AS A FUNCTION !!!!!!!
 # =========================================================
 
-def MotorMeshGenerator(base_angle, rotation_angles, file_name, poles, coarse_test=False):
+def motor_mesh_generator(base_angle, rotation_angles, file_name, poles, coarse_test=False):
 
     ''' -------------------- Motor Attributes -------------------- '''
     p       = poles # poles per 360 degrees
@@ -610,7 +610,7 @@ def MotorMeshGenerator(base_angle, rotation_angles, file_name, poles, coarse_tes
     m.add_all_entities_to_physical_group('curves')
 
     # m.get_node_indices(stator_inner_surface_4_p, print_to_file='A_z_stator_indices') # Getting node indices out for FLUX LINKAGE
-    m.get_node_coordinates(stator_inner_surface_4_p, print_to_file='A_z_air_gap_coords')
+    m.get_node_coordinates(stator_inner_surface_4_p, print_to_file='edge_deformation_data/A_z_air_gap_coords')
 
     m.assemble(coordinate_system='polar')
 
@@ -697,12 +697,13 @@ ERRORS:
 
 if __name__ == '__main__':
     shift = 2.5
-    mesh_object = MotorMeshGenerator(
+    mesh_object = motor_mesh_generator(
         base_angle=np.pi / 180 * shift,
         # rotation_angles=np.pi / 180 * np.array([0]), 
-        rotation_angles=np.pi / 180 * np.arange(0,30,5), 
+        rotation_angles=np.pi / 180 * np.arange(0,5,5), 
         file_name='mesh_files/motor_mesh',
         poles=12,
         coarse_test=False
     )   
 
+    print(vars(mesh_object)['mesh_model'])

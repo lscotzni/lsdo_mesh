@@ -30,16 +30,16 @@ class TimeAverageModel(Model):
         )
         
         for i in range(instances):
-            temp_flux_influence_ec  = self.declare_variable('B_influence_ec_{}'.format(i))
+            temp_flux_influence_ec  = self.declare_variable('B_influence_ec_{}'.format(i+1))
             flux_influence_ec_list[i] = temp_flux_influence_ec
 
-            temp_flux_influence_h   = self.declare_variable('B_influence_h_{}'.format(i))
+            temp_flux_influence_h   = self.declare_variable('B_influence_h_{}'.format(i+1))
             flux_influence_h_list[i] = temp_flux_influence_h
 
-            temp_input_power        = self.declare_variable('input_power_{}'.format(i))
+            temp_input_power        = self.declare_variable('input_power_{}'.format(i+1))
             input_power_list[i]     = temp_input_power
 
-            temp_em_torque = self.declare_variable('electromagnetic_torque_{}'.format(i))
+            temp_em_torque = self.declare_variable('electromagnetic_torque_{}'.format(i+1))
             em_torque_list[i] = temp_em_torque
 
         avg_flux_influence_ec   = csdl.average(flux_influence_ec_list)

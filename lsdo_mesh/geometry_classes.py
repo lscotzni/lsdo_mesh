@@ -295,7 +295,7 @@ class Mesh(object):
 
         self.create_csdl_model() # this contains the ffd face/edge & mesh movement csdl model classes
         # spits out the csdl variable containing mesh coordinates
-        return self.mesh_model
+        return self.mesh_models, self.shape_parameter_model
 
     def assemble_mesh(self, coordinate_system='cartesian'):
         # (1) recursively assemble entities data structures
@@ -1051,19 +1051,20 @@ class Mesh(object):
             shape_parameter_index_input=self.parameter_index_list,
             shape_parametrization=self.shape_param_sps_mat,
         )
-        self.mesh_model = []
+        self.mesh_models = []
         for i in range(len(self.rotation_angles)):
-            self.mesh_model.append(
+            self.mesh_models.append(
                 MeshModel(
                     ffd_parametrization     = self.ffd_face_sps_mat_list[i],
                     edge_parametrization    = self.edge_param_sps_mat_list[i],
                     mesh_points             = self.mesh_points_instances[i],
                     ffd_cps                 = self.ffd_cp_instances[i],
-                    num_points              = self.num_points
+                    num_points              = self.num_points,
+                    instance                = i,
                 )
             )
 
-        return self.mesh_model
+        return self.mesh_models, self.shape_parameter_model
    
     # --------------------- MISCELLANEOUS ---------------------
     def extract_point_node_coords(self, points):
