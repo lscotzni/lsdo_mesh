@@ -294,6 +294,7 @@ class Mesh(object):
 
         self.create_csdl_model() # this contains the ffd face/edge & mesh movement csdl model classes
         # spits out the csdl variable containing mesh coordinates
+        self.return_ffd_parameters()
         print('Completed lsdo_mesh assemble method.')
         return self.mesh_models, self.shape_parameter_model
 
@@ -922,8 +923,6 @@ class Mesh(object):
             sparse_row, sparse_col, sparse_val = [], [], []
 
             edge_node_coords = self.edge_nodes_instances[a]
-            print('-----')
-            print(edge_node_coords)
             
             # IDENTITY MAP FOR NODES CORRESPONDING TO USER-DEFINED MESH POINTS
             # KEY NOTE HERE: USING ORDER OF GMSH POINTS
@@ -1081,19 +1080,19 @@ class Mesh(object):
 
         return self.mesh_models, self.shape_parameter_model
 
-    def return_parametrization(self):
-        param_dict = {}
+    def return_ffd_parameters(self):
+        self.ffd_param_dict = {}
 
-        param_dict['shape_parameter_list_input'] = self.shape_parameter_list
-        param_dict['shape_parameter_index_input'] = self.parameter_index_list
-        param_dict['shape_parametrization'] = self.shape_param_sps_mat
-        param_dict['ffd_parametrization'] = self.ffd_face_sps_mat_list
-        param_dict['edge_parametrization'] = self.edge_param_sps_mat_list
-        param_dict['mesh_points'] = self.mesh_points_instances
-        param_dict['edge_nodes'] = self.edge_nodes_instances
-        param_dict['ffd_cps'] = self.ffd_cp_instances
+        self.ffd_param_dict['shape_parameter_list_input'] = self.shape_parameter_list
+        self.ffd_param_dict['shape_parameter_index_input'] = self.parameter_index_list
+        self.ffd_param_dict['shape_parametrization'] = self.shape_param_sps_mat
+        self.ffd_param_dict['ffd_parametrization'] = self.ffd_face_sps_mat_list
+        self.ffd_param_dict['edge_parametrization'] = self.edge_param_sps_mat_list
+        self.ffd_param_dict['mesh_points'] = self.mesh_points_instances
+        self.ffd_param_dict['edge_nodes'] = self.edge_nodes_instances
+        self.ffd_param_dict['ffd_cps'] = self.ffd_cp_instances
 
-        return param_dict
+        return self.ffd_param_dict
    
     # --------------------- MISCELLANEOUS ---------------------
     def extract_point_node_coords(self, points):
