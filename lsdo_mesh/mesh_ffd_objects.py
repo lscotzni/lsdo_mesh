@@ -106,11 +106,20 @@ class Surface(Entity):
             props['type'] = 1
             
             curves = []
-            for loop in args: # args formatted as ([[...]], [[...]], ...)
-                curve_loop_lengths.append(len(loop[0]))
-                for curve in loop[0]: # loop formatted as [[...]]; loop[0] is the internal list
+            '''OLD METHOD'''
+            # for loop in args: # args formatted as ([[...]], [[...]], ...)
+            #     curve_loop_lengths.append(len(loop[0]))
+            #     for curve in loop[0]: # loop formatted as [[...]]; loop[0] is the internal list
+            #         curves.append(curve)
+            
+            '''NEW METHOD'''
+            for loop in args[0]: # args formatted as ([[...]], [[...]], ...)
+                curve_loop_lengths.append(len(loop))
+                for curve in loop: # loop formatted as [[...]]; loop[0] is the internal list
                     curves.append(curve)
+            
             args = curves
+            # exit()
             # turns embedded lists in original args to single list of curves
             # need a counter to signify which curves exist for which curve loop
 

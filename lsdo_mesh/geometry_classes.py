@@ -129,7 +129,6 @@ class Mesh(object):
             if physical_group is not False:
                 raise TypeError('Physical groups must be tuples denoted as (int, string).')
         self.surface_physical_groups.append(physical_group)
-
         self.surface_curve_loops.append(curve_loop_lengths)
         self.surface_colors_all.append(color)
 
@@ -295,6 +294,7 @@ class Mesh(object):
 
         self.create_csdl_model() # this contains the ffd face/edge & mesh movement csdl model classes
         # spits out the csdl variable containing mesh coordinates
+        print('Completed lsdo_mesh assemble method.')
         return self.mesh_models, self.shape_parameter_model
 
     def assemble_mesh(self, coordinate_system='cartesian'):
@@ -417,17 +417,21 @@ class Mesh(object):
             for i, surface in enumerate(self.surface_indices):
                 # for ... in <indicator for number of curve loops here>
                 curve_loop_lengths = self.surface_curve_loops[i]
+                # print(curve_loop_lengths)
+                
                 gmsh_curve_loops = []
                 loop_counter = 0
                 for j, loop_size in enumerate(curve_loop_lengths):
                     num_curves_in_loop = loop_size
                     curve_input = list(self.surfaces[np.arange(surface[0] + loop_counter, surface[0] + loop_counter + loop_size)]+1)
+                    # print(curve_input)
                     curveloop = occ_kernel.addCurveLoop(curve_input)  # fix the  ccc via Geometry.OCCAutoFix = 0 later
                     gmsh_curve_loops.append(curveloop)
                     loop_counter += loop_size
                 # surface_ind = occ_kernel.addPlaneSurface([curveloop],i+1)
                 surface_ind = occ_kernel.addPlaneSurface(gmsh_curve_loops,i+1)
-
+                # print(gmsh_curve_loops)
+                # exit()
                 if self.surface_physical_groups[i]:
                     # surface_physical_group_indices.append(i+1)
                     surface_physical_group_indices.append(surface_ind)
@@ -541,7 +545,7 @@ class Mesh(object):
 
             # ------------------------ GETTING POINT INFORMATION ------------------------
             # Getting point entities and appending the point instances to a global array
-            self.gmsh_point_entities    = gmsh.model.getEntities(0) # of the form (0, i)
+            self.gmsh_point_entities    = gmsh.model.getEntities(0) # USER-DEFINED POINTS of the form (0, i)
             self.mesh_points_instances.append(np.array(
                 self.reorder_points_to_gmsh(coordinate_system=coordinate_system)[0][:,:2].reshape((self.num_points * 2, ))
             ))
@@ -569,7 +573,7 @@ class Mesh(object):
                 edge_node_coords.append(np.array(info[1]).reshape((int(len(info[1])/3),3)))
             
             edge_node_coords = np.array(edge_node_coords) # specify dtype to avoid warning
-
+            
             if coordinate_system is 'polar':
                 for i, edge in enumerate(edge_node_coords):
                     for j, point in enumerate(edge):
@@ -578,6 +582,12 @@ class Mesh(object):
                             np.linalg.norm(point[:2]),
                             0.0
                         ]
+
+            # print(edge_node_coords)
+            # print(edge_node_coords[0])
+            # print(edge_node_coords[1])
+            # exit()
+            
             self.edge_nodes_instances.append(edge_node_coords)
 
             # STUFF THAT DOESN'T CHANGE WITH MESH INSTANCES
@@ -598,6 +608,7 @@ class Mesh(object):
             # if '-nopopup' not in sys.argv:
             if self.popup == True:
                 gmsh.fltk.run()
+
             gmsh.finalize()
 
             os.system('python3 msh2xdmf.py -d 2 ' + self.name + '_{}.msh'.format(str(a+1)))
@@ -679,6 +690,7 @@ class Mesh(object):
         print(self.shape_param_sps_mat.toarray())
         print(self.shape_param_sps_mat.toarray().shape)
         print(self.shape_parameter_list)
+        # exit()
         print(self.axis_list)
         print(self.parameter_type_list)
         print(self.parameter_index_list)
@@ -785,11 +797,12 @@ class Mesh(object):
         # # asdf = np.dot(ffd_face_sps_mat, ffd_face_control_pts)
         # # asdf = ffd_face_sps_mat @ ffd_face_control_pts 
 
-        # # print('FFD Parametrization check:')
+        # print('FFD Parametrization check:')
         # print(orig_points)
+        # exit()
         # print(asdf)
         # print(asdf - orig_points) # entries here should return rotation angle (in radians)
-        # # print(np.where(orig_points))
+        # print(np.where(orig_points))
         # print(np.where(asdf - orig_points))
     
     def assemble_ffd_parametrization(self, coordinate_system='cartesian'):
@@ -909,6 +922,8 @@ class Mesh(object):
             sparse_row, sparse_col, sparse_val = [], [], []
 
             edge_node_coords = self.edge_nodes_instances[a]
+            print('-----')
+            print(edge_node_coords)
             
             # IDENTITY MAP FOR NODES CORRESPONDING TO USER-DEFINED MESH POINTS
             # KEY NOTE HERE: USING ORDER OF GMSH POINTS
@@ -921,6 +936,8 @@ class Mesh(object):
             for i, edge in enumerate(self.edge_node_indices):
                 edge_nodes = edge_node_coords[i]
                 first_edge = edge_nodes[0]
+                # print(edge_nodes)
+                # exit()
 
                 # DETERMINING IF PARMAETRIZATION IS DONE IN THETA OR R (correspondingly x and y for cartesian)
                 # this can ONLY handle rectilinear edges in either polar or cartesian
@@ -1047,7 +1064,7 @@ class Mesh(object):
         # new_point_location = matvec(ffd_param, ffd_deltas) + original_points
 
         self.shape_parameter_model    = ShapeParameterModel(
-            shape_parameter_list_input=self.parameter_type_list,
+            shape_parameter_list_input=self.shape_parameter_list,
             shape_parameter_index_input=self.parameter_index_list,
             shape_parametrization=self.shape_param_sps_mat,
         )
@@ -1059,12 +1076,24 @@ class Mesh(object):
                     edge_parametrization    = self.edge_param_sps_mat_list[i],
                     mesh_points             = self.mesh_points_instances[i],
                     ffd_cps                 = self.ffd_cp_instances[i],
-                    num_points              = self.num_points,
-                    instance                = i,
                 )
             )
 
         return self.mesh_models, self.shape_parameter_model
+
+    def return_parametrization(self):
+        param_dict = {}
+
+        param_dict['shape_parameter_list_input'] = self.shape_parameter_list
+        param_dict['shape_parameter_index_input'] = self.parameter_index_list
+        param_dict['shape_parametrization'] = self.shape_param_sps_mat
+        param_dict['ffd_parametrization'] = self.ffd_face_sps_mat_list
+        param_dict['edge_parametrization'] = self.edge_param_sps_mat_list
+        param_dict['mesh_points'] = self.mesh_points_instances
+        param_dict['edge_nodes'] = self.edge_nodes_instances
+        param_dict['ffd_cps'] = self.ffd_cp_instances
+
+        return param_dict
    
     # --------------------- MISCELLANEOUS ---------------------
     def extract_point_node_coords(self, points):

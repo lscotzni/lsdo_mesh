@@ -706,4 +706,5 @@ if __name__ == '__main__':
         coarse_test=False
     )   
 
-    print(vars(mesh_object)['mesh_model'])
+    print(vars(mesh_object)['mesh_models'])
+    print(vars())

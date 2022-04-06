@@ -9,8 +9,6 @@ class MeshModel(Model):
         self.parameters.declare('edge_parametrization')
         self.parameters.declare('mesh_points')
         self.parameters.declare('ffd_cps')
-        self.parameters.declare('num_points')
-        self.parameters.declare('instance')
 
         # STEPS:
         # 1. OPTIMIZER OUTPUTS UPDATED SHAPE PARAMETER VALUES
@@ -27,8 +25,6 @@ class MeshModel(Model):
         edge_parametrization    = self.parameters['edge_parametrization']
         mesh_points             = self.parameters['mesh_points']
         ffd_cps                 = self.parameters['ffd_cps']
-        num_points              = self.parameters['num_points']
-        instance                = self.parameters['instance']
 
         # SHAPE PARAMETER CONCATENATION:
         # for loop declaring shape parameters as variables
@@ -43,7 +39,7 @@ class MeshModel(Model):
         delta_mesh_points = csdl.matvec(ffd_parametrization, delta_ffd_cp) 
         
         delta_mesh_points = self.register_output(
-            'delta_mesh_points_{}'.format(instance),
+            'delta_mesh_points',
             var=delta_mesh_points,
             # shape=delta_mesh_points.shape,
         )
@@ -52,14 +48,14 @@ class MeshModel(Model):
         print(delta_ffd_cp)
         
         mesh_instance = self.declare_variable(
-            'mesh_points_{}'.format(instance),
+            'mesh_points',
             val=mesh_points,
             shape=mesh_points.shape
         )
     
         new_mesh_points = mesh_instance + delta_mesh_points
         new_mesh_points = self.register_output(
-            'new_mesh_points_{}'.format(instance),
+            'new_mesh_points',
             var=new_mesh_points,
             # shape=new_mesh_points.shape
         )
@@ -77,7 +73,7 @@ class MeshModel(Model):
         )
 
         self.register_output(
-            'new_edge_nodes_{}'.format(instance),
+            'new_edge_nodes',
             new_edge_nodes,
             # new_edge_nodes.shape
         )
