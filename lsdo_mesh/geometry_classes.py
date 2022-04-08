@@ -10,7 +10,7 @@ from csdl import Model
 
 from lsdo_mesh.mesh_ffd_objects import *
 from lsdo_mesh.remove_duplicates import remove_duplicate_points, remove_duplicate_curves
-from lsdo_mesh.csdl_mesh_model import MeshModel, ShapeParameterModel
+from lsdo_mesh.csdl_mesh_models import EdgeUpdateModel, ShapeParameterModel
 
 from lsdo_mesh.geometry_operations import rotate
 import os
@@ -199,9 +199,10 @@ class Mesh(object):
         # long term, line above contains Ru's FEniCS mesh deformation/regeneration model
         # for short term, we will separate it
 
+        self.return_ffd_parameters(coordinate_system=coordinate_system)
+
         self.create_csdl_model() # this contains the ffd face/edge & mesh movement csdl model classes
         # spits out the csdl variable containing mesh coordinates
-        self.return_ffd_parameters(coordinate_system=coordinate_system)
         print('Completed lsdo_mesh assemble method.')
         return self.mesh_models, self.shape_parameter_model
 
@@ -965,11 +966,12 @@ class Mesh(object):
         self.mesh_models = []
         for i in range(len(self.rotation_angles)):
             self.mesh_models.append(
-                MeshModel(
+                EdgeUpdateModel(
                     ffd_parametrization     = self.ffd_face_sps_mat_list[i],
                     edge_parametrization    = self.edge_param_sps_mat_list[i],
                     mesh_points             = self.mesh_points_instances[i],
                     ffd_cps                 = self.ffd_cp_instances[i],
+                    initial_edge_coords     = self.initial_edge_coords_instances[i]
                 )
             )
 
@@ -995,6 +997,19 @@ class Mesh(object):
         self.ffd_param_dict['mesh_points'] = self.mesh_points_instances
         self.ffd_param_dict['ffd_cps'] = self.ffd_cp_instances
         self.ffd_param_dict['initial_edge_coordinates'] = self.initial_edge_coords_instances
+
+        '''
+        COMMENTS ON FFD PARAMETER DICTIONARY:
+        - shape_parameter_list_input: list of shape parameter names (need for csdl.declare_variable)
+        - shape_parameter_index_input: list holding info for constant (1) or linear (2) shape parameter
+        - shape_parametrization: sparse matrix applied to __ to get the ffd control point deltas
+        - THE BELOW QUANTITIES ALL HAVE "n" INSTANCES BASED ON THE LENGTH OF self.rotation_angles INPUT
+        - ffd_parametrization: sparse matrix applied to __ to get deltas of mesh vertices
+          - these get added to the original mesh vertices
+        - edge_parametrization: sparse matrix applied to updated location of mesh vertices to get new edge node locations
+        - ffd_cps: initial ffd face control point coordinates
+        - initial_edge_coordinates: initial location of all edge nodes
+        '''
 
         return self.ffd_param_dict
    

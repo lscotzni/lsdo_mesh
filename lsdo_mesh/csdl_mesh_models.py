@@ -2,13 +2,14 @@ import numpy as np
 import csdl
 from csdl import Model
 
-class MeshModel(Model):
+class EdgeUpdateModel(Model):
     def initialize(self):
         
         self.parameters.declare('ffd_parametrization')
         self.parameters.declare('edge_parametrization')
         self.parameters.declare('mesh_points')
         self.parameters.declare('ffd_cps')
+        self.parameters.declare('initial_edge_coords')
 
         # STEPS:
         # 1. OPTIMIZER OUTPUTS UPDATED SHAPE PARAMETER VALUES
@@ -17,7 +18,7 @@ class MeshModel(Model):
         # 3. APPLY MAT-VEC PRODUCT BETWEEN FFD SPARSE MAT AND NEW FFD CPs
         #       - ADD TO ORIGINAL POINT COORDINATES (FOUND IN mesh_points_instances)
         # 4. APPLY MAT-VEC PRODUCT BETWEEN EDGE PROJECTION AND NEW POINT COORDINATES
-        #       - PRODUCES LOCATION OF NEW POINTS
+        #       - PRODUCES LOCATION OF NEW EDGE POINTS
 
     def define(self):
         
@@ -25,13 +26,14 @@ class MeshModel(Model):
         edge_parametrization    = self.parameters['edge_parametrization']
         mesh_points             = self.parameters['mesh_points']
         ffd_cps                 = self.parameters['ffd_cps']
+        initial_edge_coords     = self.parameters['initial_edge_coords']
 
         # SHAPE PARAMETER CONCATENATION:
         # for loop declaring shape parameters as variables
         # use create_output to initialize the empty shape_parameter_vec vector
         # within for loop, assign different shape parameters to parts of empty shape_parameter_vec
 
-        delta_ffd_cp = self.declare_variable('delta_ffd_cp', shape=(8,))
+        delta_ffd_cp = self.declare_variable('delta_ffd_cp', shape=(ffd_parametrization.shape[1],))
         # NOTE: SHAPES MUST ALWAYS BE SET UP (WILL NOT AUTOMATICALLY BE READ IN CSDL)
         
         # getting deltas of the defined mesh points
@@ -43,9 +45,6 @@ class MeshModel(Model):
             var=delta_mesh_points,
             # shape=delta_mesh_points.shape,
         )
-
-        print(delta_mesh_points)
-        print(delta_ffd_cp)
         
         mesh_instance = self.declare_variable(
             'mesh_points',
@@ -59,7 +58,8 @@ class MeshModel(Model):
             var=new_mesh_points,
             # shape=new_mesh_points.shape
         )
-    
+
+        # need edge points here to add to the deltas
         edge_param_sps_mat = edge_parametrization
         # edge_param_sps_mat = self.declare_variable(
         #     'edge_param_sps_mat_{}'.format(i+1),
@@ -72,10 +72,12 @@ class MeshModel(Model):
             edge_param_sps_mat, new_mesh_points
         )
 
+        delta_edge_nodes = new_edge_nodes - initial_edge_coords
+
+
         self.register_output(
-            'new_edge_nodes',
-            new_edge_nodes,
-            # new_edge_nodes.shape
+            'delta_edge_nodes',
+            delta_edge_nodes,
         )
 
         # ------------------------------------------------------------------------
