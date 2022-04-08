@@ -201,7 +201,7 @@ class Mesh(object):
 
         self.create_csdl_model() # this contains the ffd face/edge & mesh movement csdl model classes
         # spits out the csdl variable containing mesh coordinates
-        self.return_ffd_parameters()
+        self.return_ffd_parameters(coordinate_system=coordinate_system)
         print('Completed lsdo_mesh assemble method.')
         return self.mesh_models, self.shape_parameter_model
 
@@ -672,7 +672,7 @@ class Mesh(object):
         for i in range(len(self.rotation_angles) - 1):
             print(self.ffd_cp_instances[i+1] - self.ffd_cp_instances[i])
 
-        exit()
+        # exit()
         
     def assemble_ffd_parametrization(self, coordinate_system='cartesian'):
         
@@ -754,6 +754,13 @@ class Mesh(object):
                         u * v,              # P11
                         u * v,              # P11
                     ])
+
+                    # print(sparse_row)
+                    # print(sparse_col)
+                    # print(sparse_val)
+                    # if point_ind == 1:
+                    #     exit()
+
             if a == 0:
                 self.ffd_face_sps_mat = csc_matrix(
                     (sparse_val, (sparse_row, sparse_col)),
@@ -771,18 +778,20 @@ class Mesh(object):
         # print(self.ffd_face_sps_mat.toarray().shape)
         orig_points = self.ffd_face_sps_mat.dot(self.ffd_face_control_pts) # check for whether FFD faces return original points
         # asdf  = self.ffd_face_sps_mat.dot(self.ffd_cp_instances[1]) 
-        # asdf  = self.ffd_face_sps_mat_list[1].dot(self.ffd_cp_instances[1]) 
+        asdf  = self.ffd_face_sps_mat_list[1].dot(self.ffd_cp_instances[1]) 
         # # other ways to do the above dot product:
         # # asdf = np.dot(ffd_face_sps_mat, ffd_face_control_pts)
         # # asdf = ffd_face_sps_mat @ ffd_face_control_pts 
 
-        # print('FFD Parametrization check:')
-        # print(orig_points)
-        # exit()
-        # print(asdf)
-        # print(asdf - orig_points) # entries here should return rotation angle (in radians)
+        print('FFD Parametrization check:')
+        print(orig_points)
+        print(asdf)
+        print(asdf - orig_points) # entries here should return rotation angle (in radians)
         # print(np.where(orig_points))
         # print(np.where(asdf - orig_points))
+        print(self.ffd_face_sps_mat_list[0].shape)
+        print(self.ffd_cp_instances[0].shape)
+        print(orig_points.shape)
 
     def assemble_edge_parametrization(self, coordinate_system='cartesian'):
         # print(' ============ ASSEMBLING EDGE PARAMETRIZATION ============ ')
@@ -966,7 +975,16 @@ class Mesh(object):
 
         return self.mesh_models, self.shape_parameter_model
 
-    def return_ffd_parameters(self):
+    def return_ffd_parameters(self, coordinate_system='cartesian'):
+        
+        self.initial_edge_coords_instances = []
+        for i in range(len(self.rotation_angles)):
+            initial_edge_coords_instance = self.get_ffd_edge_old_coords(
+                output_type=coordinate_system, 
+                instance=i
+            )
+            self.initial_edge_coords_instances.append(initial_edge_coords_instance)
+
         self.ffd_param_dict = {}
 
         self.ffd_param_dict['shape_parameter_list_input'] = self.shape_parameter_list
@@ -975,8 +993,8 @@ class Mesh(object):
         self.ffd_param_dict['ffd_parametrization'] = self.ffd_face_sps_mat_list
         self.ffd_param_dict['edge_parametrization'] = self.edge_param_sps_mat_list
         self.ffd_param_dict['mesh_points'] = self.mesh_points_instances
-        self.ffd_param_dict['edge_nodes'] = self.edge_nodes_instances
         self.ffd_param_dict['ffd_cps'] = self.ffd_cp_instances
+        self.ffd_param_dict['initial_edge_coordinates'] = self.initial_edge_coords_instances
 
         return self.ffd_param_dict
    
