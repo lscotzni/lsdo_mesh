@@ -72,12 +72,12 @@ class EdgeUpdateModel(Model):
             edge_param_sps_mat, new_mesh_points
         )
 
-        delta_edge_nodes = new_edge_nodes - initial_edge_coords
+        edge_deltas = new_edge_nodes - initial_edge_coords
 
 
         self.register_output(
-            'delta_edge_nodes',
-            delta_edge_nodes,
+            'edge_deltas',
+            edge_deltas,
         )
 
         # ------------------------------------------------------------------------
