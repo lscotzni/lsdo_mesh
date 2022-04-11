@@ -526,7 +526,7 @@ class Mesh(object):
             all_face_shape_parameters = vars(face)['parameters']
             for j, parameters in enumerate(all_face_shape_parameters):
                 # Adding parameters to lists in order of definition
-                self.shape_parameter_list.append(parameters[0])
+                self.shape_parameter_list.append(parameters[0] + '_sp')
                 self.axis_list.append(parameters[1])
                 self.parameter_type_list.append(parameters[2])
 
