@@ -25,15 +25,13 @@ def RelativePermeability(subdomain, u, uhat):
                 (exp_coeff[0] * exp(exp_coeff[1]*norm_B + exp_coeff[2]) + 1)
             )
         )
-    elif subdomain == 3:
-        mu = 1.00 # insert value for titanium or shaft material
-    elif subdomain >= 4 and subdomain <= 28: # AIR
-        mu = 1.0
-    elif subdomain >= 29 and subdomain <= 40: # NEODYMIUM
+    elif subdomain >= 3 and subdomain <= 14: # NEODYMIUM
         mu = 1.05
-    elif subdomain >= 41: # COPPER
+    elif subdomain >= 15 and subdomain <= 50: # COPPER
         mu = 1.00
-
+    elif subdomain > 50: # AIR
+        mu = 1.00 # insert value for titanium or shaft material
+    
     return mu
 # END NEW PERMEABILITY
 
@@ -62,12 +60,12 @@ def JS(v,uhat,iq,p,s,Hc,angle):
         H = as_vector([Hx, Hy])
 
         curl_v = as_vector([gradv[1],-gradv[0]])
-        Jm += inner(H,curl_v)*dx(i + 4 + p*2 + 1)
+        Jm += inner(H,curl_v)*dx(i + 3)
 
     num_phases = 3
     num_windings = s
     coil_per_phase = 2
-    stator_winding_index_start  = 4 + 3 * p + 1
+    stator_winding_index_start  = 2 + p + 1
     stator_winding_index_end    = stator_winding_index_start + num_windings
     Jw = 0.
     i_abc = compute_i_abc(iq, angle)
@@ -109,7 +107,7 @@ def pdeRes(u,v,uhat,iq,dx,p,s,Hc,vacuum_perm,angle):
     res = 0.
     gradu = gradx(u,uhat)
     gradv = gradx(v,uhat)
-    num_components = 4 * 3 * p + 2 * s
+    num_components = 3 + 3*p + s
     for i in range(num_components):
         res += 1./vacuum_perm*(1/RelativePermeability(i + 1, u, uhat))\
                 *dot(gradu,gradv)*J(uhat)*dx(i + 1)

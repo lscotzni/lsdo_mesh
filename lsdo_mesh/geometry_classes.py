@@ -777,22 +777,23 @@ class Mesh(object):
         # print(self.ffd_face_sps_mat)
         # print(self.ffd_face_sps_mat.toarray())
         # print(self.ffd_face_sps_mat.toarray().shape)
-        orig_points = self.ffd_face_sps_mat.dot(self.ffd_face_control_pts) # check for whether FFD faces return original points
-        # asdf  = self.ffd_face_sps_mat.dot(self.ffd_cp_instances[1]) 
-        asdf  = self.ffd_face_sps_mat_list[1].dot(self.ffd_cp_instances[1]) 
-        # # other ways to do the above dot product:
-        # # asdf = np.dot(ffd_face_sps_mat, ffd_face_control_pts)
-        # # asdf = ffd_face_sps_mat @ ffd_face_control_pts 
+        if False:
+            orig_points = self.ffd_face_sps_mat.dot(self.ffd_face_control_pts) # check for whether FFD faces return original points
+            # asdf  = self.ffd_face_sps_mat.dot(self.ffd_cp_instances[1]) 
+            asdf  = self.ffd_face_sps_mat_list[1].dot(self.ffd_cp_instances[1]) 
+            # # other ways to do the above dot product:
+            # # asdf = np.dot(ffd_face_sps_mat, ffd_face_control_pts)
+            # # asdf = ffd_face_sps_mat @ ffd_face_control_pts 
 
-        print('FFD Parametrization check:')
-        print(orig_points)
-        print(asdf)
-        print(asdf - orig_points) # entries here should return rotation angle (in radians)
-        # print(np.where(orig_points))
-        # print(np.where(asdf - orig_points))
-        print(self.ffd_face_sps_mat_list[0].shape)
-        print(self.ffd_cp_instances[0].shape)
-        print(orig_points.shape)
+            print('FFD Parametrization check:')
+            print(orig_points)
+            print(asdf)
+            print(asdf - orig_points) # entries here should return rotation angle (in radians)
+            # print(np.where(orig_points))
+            # print(np.where(asdf - orig_points))
+            print(self.ffd_face_sps_mat_list[0].shape)
+            print(self.ffd_cp_instances[0].shape)
+            print(orig_points.shape)
 
     def assemble_edge_parametrization(self, coordinate_system='cartesian'):
         # print(' ============ ASSEMBLING EDGE PARAMETRIZATION ============ ')
@@ -985,7 +986,7 @@ class Mesh(object):
                 output_type=coordinate_system, 
                 instance=i
             )
-            self.initial_edge_coords_instances.append(initial_edge_coords_instance)
+            self.initial_edge_coords_instances.append(initial_edge_coords_instance[:-2]) # TRIMMING OUT ORIGIN
 
         self.ffd_param_dict = {}
 
@@ -1156,7 +1157,7 @@ class Mesh(object):
         # --- FFD TEST
         # ordered_coords = self.gmsh_order_point_coords_polar
         ordered_coords = self.mesh_points_instances[instance]
-        print(self.ffd_face_sps_mat.shape)
+        # print(self.ffd_face_sps_mat.shape)
         point_delta = self.ffd_face_sps_mat_list[instance].dot(delta)
         new_coords = ordered_coords + point_delta
 

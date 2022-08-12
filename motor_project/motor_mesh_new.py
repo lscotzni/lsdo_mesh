@@ -608,7 +608,8 @@ def motor_mesh_generator(base_angle, rotation_angles, file_name, poles, coarse_t
     # m.add_face(Ru_test_def_ffd)
 
     m.add_all_entities_to_physical_group('curves')
-
+    m.assemble(coordinate_system='polar')
+    exit()
     # m.get_node_indices(stator_inner_surface_4_p, print_to_file='A_z_stator_indices') # Getting node indices out for FLUX LINKAGE
     m.get_node_coordinates(stator_inner_surface_4_p, print_to_file='edge_deformation_data/A_z_air_gap_coords')
 
@@ -701,7 +702,7 @@ if __name__ == '__main__':
         base_angle=np.pi / 180 * shift,
         # rotation_angles=np.pi / 180 * np.array([0]), 
         rotation_angles=np.pi / 180 * np.arange(0,5,5), 
-        file_name='mesh_files/motor_mesh',
+        file_name='mesh_files_test/motor_mesh',
         poles=12,
         coarse_test=False
     )   

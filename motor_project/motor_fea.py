@@ -75,10 +75,10 @@ class MotorFEA(object):
         )
         self.dx = Measure('dx', domain=self.mesh, subdomain_data=self.subdomains_mf)
         self.dS = Measure('dS', domain=self.mesh, subdomain_data=self.boundaries_mf)
-        self.winding_id = [42,]
-        self.magnet_id = [29,]
-        self.steel_id = [1,2,3]
-        self.winding_range = range(41,76+1)
+        self.winding_id = [15,]
+        self.magnet_id = [3,]
+        self.steel_id = [1,2]
+        self.winding_range = range(15,50+1)
         
         # Subdomains for calculating power losses
         self.ec_loss_subdomain = [1,2,] # rotor and stator core

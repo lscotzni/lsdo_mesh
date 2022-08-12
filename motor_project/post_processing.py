@@ -143,12 +143,10 @@ if __name__ ==  '__main__':
     slot_fill_factor    = 0.6
     num_windings        = 13
     t_start             = time.time()
-    # rpm_list            = np.arange(500, 8000 + 1, 500)
-    rpm_list            = np.array([1000.])
+    rpm_list            = np.arange(1000, 6000 + 1, 500)
+    # rpm_list            = np.array([1000., 2000.])
     # current_list        = np.arange(20., 220. + 1., 20)
-    # current_list        = np.array([20., 50., 100., 150., 200.])
-    current_list        = np.array([100.])
-    
+    current_list        = np.array([0.])
     
     p                   = 12
     t                   = 0
@@ -156,7 +154,7 @@ if __name__ ==  '__main__':
     angle_shift         = 2.5
     angles              = (angle_shift + np.arange(0,30,5)) * np.pi / 180
     # instances           = len(angles)
-    instances           = 1
+    instances           = 2
 
     efficiency_map      = np.zeros((len(current_list), len(rpm_list)))
     input_power_map     = np.zeros((len(current_list), len(rpm_list)))
@@ -208,6 +206,7 @@ if __name__ ==  '__main__':
                                 old_edge_coords=old_edge_coords)
             fea.angle = angle
             updateR(fea.iq, iq / (0.00016231 / num_windings))
+            # fea.iq = iq / (0.00016231 / num_windings)
             fea.solveMagnetostatic(report=True)
             
             f = open('edge_deformation_data/A_z_air_gap_coords_{}.txt'.format(i+1), 'r+')
@@ -220,9 +219,9 @@ if __name__ ==  '__main__':
             fea_list.append(fea)
 
             # SAVING DATA FOR TESTING
-            if False:
-                vtkfile_A_z = File('post_proc_viz/Magnetic_Vector_Potential_20A_{}.pvd'.format(i+1))
-                vtkfile_B = File('post_proc_viz/Magnetic_Flux_Density_20A_{}.pvd'.format(i+1))
+            if True:
+                vtkfile_A_z = File('post_proc_viz/Magnetic_Vector_Potential_{}_{}_0726TEST.pvd'.format(str(current_amplitude),i+1))
+                vtkfile_B = File('post_proc_viz/Magnetic_Flux_Density_{}_{}_0726TEST.pvd'.format(str(current_amplitude),i+1))
                 vtkfile_A_z << fea.A_z
                 vtkfile_B << fea.B
 
@@ -290,6 +289,7 @@ if __name__ ==  '__main__':
             print('wire radius:', sim['wire_radius'])
             print('AC resistance:', sim['wire_resistance_AC'])
             print('DC resistance:', sim['wire_resistance'])
+            print('input power:', sim['output_power'])
             print('output power:', sim['output_power'])
             print('output torque:', sim['output_torque'])
             print('windage_loss:', sim['windage_loss'])
@@ -301,6 +301,9 @@ if __name__ ==  '__main__':
             print('azimuthal velocity: ', sim['azimuthal_vel'])
             print('efficiency:', sim['efficiency'])
             print('total mass:', sim['total_mass'])
+            print('winding area: ', sim['winding_area'])
+            print('steel area: ', sim['steel_area'])
+            print('magnet area: ', sim['magnet_area'])
 
             print(' ---- Windage Loss Analysis ---- ')
             print('windage_loss:', sim['windage_loss'])
@@ -389,7 +392,7 @@ if __name__ ==  '__main__':
         # plt.ylabel('Current Amplitude (A)')
         # plt.title('Output Power Map')
 
-    if True:
+    if False:
         for n, current_amplitude in enumerate(current_list):
             plt.figure(6)
             plt.plot(rpm_list, efficiency_map[n,:], '*-', linewidth=1, markersize=5, label='{} A'.format(current_amplitude))
@@ -431,61 +434,61 @@ if __name__ ==  '__main__':
             plt.legend()
             plt.grid(visible=True)
 
-        plt.figure(11)
-        plt.plot(rpm_list, windage_loss_array, 'k', linewidth=3)
-        plt.xlabel('RPM')
-        plt.ylabel('Windage Loss (W)')
-        plt.title('RPM vs. Windage Loss (Current Amplitude Isolines)')
-        plt.grid(visible=True)
+            plt.figure(11)
+            plt.plot(rpm_list, windage_loss_array, 'k', linewidth=3)
+            plt.xlabel('RPM')
+            plt.ylabel('Windage Loss (W)')
+            plt.title('RPM vs. Windage Loss (Current Amplitude Isolines)')
+            plt.grid(visible=True)
 
-        plt.figure(12)
-        plt.plot(current_list, copper_loss_array, 'k', linewidth=3)
-        plt.xlabel('Current Amplitude (A)')
-        plt.ylabel('Copper Loss (W)')
-        plt.title('Current vs. Copper Loss')
-        plt.grid(visible=True)
+            plt.figure(12)
+            plt.plot(current_list, copper_loss_array, 'k', linewidth=3)
+            plt.xlabel('Current Amplitude (A)')
+            plt.ylabel('Copper Loss (W)')
+            plt.title('Current vs. Copper Loss')
+            plt.grid(visible=True)
 
-        plt.figure(13)
-        plt.plot(current_list, torque_array, 'k', linewidth=3)
-        plt.xlabel('Current Amplitude (A)')
-        plt.ylabel('EM Torque  (Nm)')
-        plt.title('Current vs. Electromagnetic Torque')
-        plt.grid(visible=True)
+            plt.figure(13)
+            plt.plot(current_list, torque_array, 'k', linewidth=3)
+            plt.xlabel('Current Amplitude (A)')
+            plt.ylabel('EM Torque  (Nm)')
+            plt.title('Current vs. Electromagnetic Torque')
+            plt.grid(visible=True)
 
-        plt.figure(14)
-        plt.plot(rpm_list * 2*np.pi/60 * 80e-3, windage_loss_vel_array, 'k', linewidth=3)
-        plt.xlabel('Rotor edge linear velocity (m/s)')
-        plt.ylabel('Average azimuthal velocity (m/s)')
-        plt.title('Rotor Speed vs. Avg. Azimuthal velocity')
-        plt.grid(visible=True)
+            plt.figure(14)
+            plt.plot(rpm_list * 2*np.pi/60 * 80e-3, windage_loss_vel_array, 'k', linewidth=3)
+            plt.xlabel('Rotor edge linear velocity (m/s)')
+            plt.ylabel('Average azimuthal velocity (m/s)')
+            plt.title('Rotor Speed vs. Avg. Azimuthal velocity')
+            plt.grid(visible=True)
 
-        # plt.figure(15)
-        # plt.plot(air_gap_Ta_array, windage_loss_array, 'k', linewidth=3)
-        # plt.xlabel('Air gap Taylor Number')
-        # plt.ylabel('Windage Loss (W)')
-        # plt.title('Ta vs. Windage Loss')
-        # plt.grid(visible=True)
+            # plt.figure(15)
+            # plt.plot(air_gap_Ta_array, windage_loss_array, 'k', linewidth=3)
+            # plt.xlabel('Air gap Taylor Number')
+            # plt.ylabel('Windage Loss (W)')
+            # plt.title('Ta vs. Windage Loss')
+            # plt.grid(visible=True)
 
-        # plt.figure(16)
-        # plt.plot(air_gap_Re_array, windage_loss_array, 'k', linewidth=3)
-        # plt.xlabel('Air gap Reynolds Number')
-        # plt.ylabel('Windage Loss (W)')
-        # plt.title('Re vs. Windage Loss')
-        # plt.grid(visible=True)
+            # plt.figure(16)
+            # plt.plot(air_gap_Re_array, windage_loss_array, 'k', linewidth=3)
+            # plt.xlabel('Air gap Reynolds Number')
+            # plt.ylabel('Windage Loss (W)')
+            # plt.title('Re vs. Windage Loss')
+            # plt.grid(visible=True)
 
-        # print(flux_linkage_abc)
-        # plt.figure(100)
-        # plt.plot(angles[:instances] * 180 / np.pi, flux_linkage_abc[:,0], 'r-*', label='Phase a')
-        # plt.plot(angles[:instances] * 180 / np.pi, flux_linkage_abc[:,1], 'g-*',label='Phase b')
-        # plt.plot(angles[:instances] * 180 / np.pi, flux_linkage_abc[:,2], 'b-*', label='Phase c')
-        # plt.ylabel('Flux linkage')
-        # plt.xlabel('Rotor mechanical angle')
-        # plt.title('Flux linkage of each phase ({}A)'.format(current_amplitude))
-        # plt.grid()
-        # plt.legend()
+            print(flux_linkage_abc)
+            plt.figure(100)
+            plt.plot(angles[:instances] * 180 / np.pi, flux_linkage_abc[:,0], 'r-*', label='Phase a')
+            plt.plot(angles[:instances] * 180 / np.pi, flux_linkage_abc[:,1], 'g-*',label='Phase b')
+            plt.plot(angles[:instances] * 180 / np.pi, flux_linkage_abc[:,2], 'b-*', label='Phase c')
+            plt.ylabel('Flux linkage')
+            plt.xlabel('Rotor mechanical angle')
+            plt.title('Flux linkage of each phase ({}A)'.format(current_amplitude))
+            plt.grid()
+            plt.legend()
 
 
-    plt.show()
+    # plt.show()
         
 # ------------------------------------ NOTE: ------------------------------------
 #   - in the lsdo_mesh method to output node indices, also add the coordinates as an output
