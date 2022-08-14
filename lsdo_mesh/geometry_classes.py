@@ -576,13 +576,13 @@ class Mesh(object):
             (sparse_val, (sparse_row, sparse_col)),
             shape=((len(self.ffd_faces) * 8, max(sparse_col) + 1))
         )
-        print(self.shape_param_sps_mat.toarray())
-        print(self.shape_param_sps_mat.toarray().shape)
-        print(self.shape_parameter_list)
-        # exit()
-        print(self.axis_list)
-        print(self.parameter_type_list)
-        print(self.parameter_index_list)
+        # print(self.shape_param_sps_mat.toarray())
+        # print(self.shape_param_sps_mat.toarray().shape)
+        # print(self.shape_parameter_list)
+        # # exit()
+        # print(self.axis_list)
+        # print(self.parameter_type_list)
+        # print(self.parameter_index_list)
 
     def assemble_ffd_control_points(self, coordinate_system='cartesian'):
         self.num_ffd_faces          = len(self.ffd_faces)
@@ -666,12 +666,12 @@ class Mesh(object):
             self.ffd_cp_instances.append(ffd_face_control_pts)
         self.ffd_cp_instances = np.array(self.ffd_cp_instances)
 
-        # CHECK FFD CP AND DIFFERENCE FOR EACH ROTATION INSTANCE
-        for i in range(len(self.rotation_angles)):
-            print(self.ffd_cp_instances[i])
+        # # CHECK FFD CP AND DIFFERENCE FOR EACH ROTATION INSTANCE
+        # for i in range(len(self.rotation_angles)):
+        #     print(self.ffd_cp_instances[i])
 
-        for i in range(len(self.rotation_angles) - 1):
-            print(self.ffd_cp_instances[i+1] - self.ffd_cp_instances[i])
+        # for i in range(len(self.rotation_angles) - 1):
+        #     print(self.ffd_cp_instances[i+1] - self.ffd_cp_instances[i])
 
         # exit()
         
@@ -700,7 +700,7 @@ class Mesh(object):
                 # need to extract P00 and P11 from self.ffd_face_control_pts
                 P00     = [ffd_face_control_pts[start], ffd_face_control_pts[start + 1]]
                 P11     = [ffd_face_control_pts[end - 2], ffd_face_control_pts[end - 1]]
-                print(P00, P11)
+                # print(P00, P11)
 
                 # loop for the number of children within the face
                 embedded_points = vars(face)['embedded_points'] # need to apply rotation here for points with rotated instances
@@ -713,21 +713,21 @@ class Mesh(object):
                             )[0]
                     point_coords_to_reorder = np.array(point.return_coordinates(output_type='cartesian'))
                     point_coords            = point.return_coordinates(coordinate_system)[:2]
-                    print(point_coords)
+                    # print(point_coords)
         
                     # might be good to keep this comparison in cartesian coordinates
                     # polar coordinates are tough b/c np.arctan2() returns angle in range [-pi, pi]
                     # pi and -pi represent the same thing in our case but the sign will break the comparison
-                    print(embedded_points)
-                    print(point_coords_to_reorder)
-                    print(self.gmsh_order_point_coords_instances[a])
+                    # print(embedded_points)
+                    # print(point_coords_to_reorder)
+                    # print(self.gmsh_order_point_coords_instances[a])
                     index = np.where(
                         np.linalg.norm(
                             point_coords_to_reorder - self.gmsh_order_point_coords_instances[a],
                             axis=1
                         ) < 1.e-6
                     )
-                    print('index:', index)
+                    # print('index:', index)
 
                     # ADD PI-CONDITION 
                     if P00[0] < 0 and P11[0] > 0 and abs(P11[0] - P00[0]) > np.pi:
@@ -738,7 +738,7 @@ class Mesh(object):
                         (point_coords[0] - P00[0]) / (P11[0] - P00[0]),
                         (point_coords[1] - P00[1]) / (P11[1] - P00[1]),
                     ]
-                    print(u,v)
+                    # print(u,v)
 
                     for i in range(4):
                         sparse_row.extend(
@@ -1030,7 +1030,7 @@ class Mesh(object):
             file_data = np.array(extracted_point_node_coords).reshape(dim*len(points),1)
             np.savetxt(self.point_node_coords_to_file + '_{}.txt'.format(int(self.instance+1)), file_data)
         
-        print(extracted_point_node_coords)
+        # print(extracted_point_node_coords)
 
         return extracted_point_node_coords
 
@@ -1044,7 +1044,7 @@ class Mesh(object):
         point_coordinates               = self.extract_point_node_coords(points)
         
         for point_coordinate in point_coordinates:
-            print('point_coordinate: ', point_coordinate)
+            # print('point_coordinate: ', point_coordinate)
             # implement search method via point coordinates and np.linalg.norm()
             # search within gmsh.model.mesh.getNodes
             for i, node in enumerate(gmsh_point_node_indices):

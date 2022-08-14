@@ -72,7 +72,7 @@ class EdgeUpdateModel(Model):
             edge_param_sps_mat, new_mesh_points
         )
 
-        edge_deltas_temp = new_edge_nodes[:-2] - initial_edge_coords
+        # edge_deltas_temp = new_edge_nodes[:-2] - initial_edge_coords
 
         edge_deltas = self.create_output(
             'edge_deltas',
@@ -80,9 +80,10 @@ class EdgeUpdateModel(Model):
             shape=initial_edge_coords.shape,
         )
 
-        print(initial_edge_coords.shape[0]/2)
-        # for i in range(int(initial_edge_coords.shape[0]/2)):
-        for i in range(350,600):
+        # print(initial_edge_coords.shape[0]/2)
+        for i in range(int(initial_edge_coords.shape[0]/2)):
+        # Ru: only works for the coarsest mesh
+        # for i in range(350,600):
             edge_deltas[2*i] = new_edge_nodes[2*i+1] * csdl.cos(new_edge_nodes[2*i]) - \
                 initial_edge_coords[2*i+1] * np.cos(initial_edge_coords[2*i])
             edge_deltas[2*i+1] = new_edge_nodes[2*i+1] * csdl.sin(new_edge_nodes[2*i]) - \
@@ -141,11 +142,11 @@ class ShapeParameterModel(Model):
         #     shape=(len(shape_param_vec),)
         # )
         # ---
-        print(shape_parameter_index_input)
-        print(shape_parameter_list_input)
-        print(shape_parametrization)
+        # print(shape_parameter_index_input)
+        # print(shape_parameter_list_input)
+        # print(shape_parametrization)
         shape_parameter_total   = int(np.dot(np.ones((len(shape_parameter_list_input),)),shape_parameter_index_input))
-        print(shape_parameter_total)
+        # print(shape_parameter_total)
         shape_param_vec = self.create_output(
             name='shape_param_vec',
             shape=(shape_parameter_total,)
@@ -164,13 +165,13 @@ class ShapeParameterModel(Model):
         for i, name in enumerate(shape_parameter_list_input):
             local_SP    = self.declare_variable(name=name) # declaring variable for actual SP
             len_SP      = shape_parameter_index_input[i]
-            print(len_SP)
+            # print(len_SP)
             expanded_local_SP  = csdl.expand(local_SP, (len_SP,))
-            print(expanded_local_SP.shape)
+            # print(expanded_local_SP.shape)
             shape_param_vec[counter:counter + len_SP] = expanded_local_SP
             counter += len_SP
         # exit()
-        print(shape_param_vec.shape)
+        # print(shape_param_vec.shape)
 
 
         # shape_parameterization = self.declare_variable(
