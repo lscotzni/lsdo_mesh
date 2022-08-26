@@ -12,7 +12,7 @@
 - code clean-up
 - generalization for cartesian (x-y) coordinates as well
     - implementation is only in polar right now
-- clean up the FFD CSDL models
+- clean up the FFD CSDL models (WIP)
 - COME UP WITH A CONSISTENT NAMING SCHEME FOR EDGES AND VERTICES TO AVOID CONFUSION
     - mesh vertices: user-defined points (making up major subdomains like the 4 points defining a magnet)
     - edge nodes: nodes along edges between vertices

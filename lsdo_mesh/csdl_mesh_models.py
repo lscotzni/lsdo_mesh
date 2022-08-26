@@ -66,7 +66,8 @@ class EdgeUpdateModel(Model):
             edge_param_sps_mat, new_mesh_points
         )
 
-        # edge_deltas_temp = new_edge_nodes[:-2] - initial_edge_coords
+        edge_deltas_temp = new_edge_nodes[:-2] - initial_edge_coords
+        self.print_var(edge_deltas_temp[736:1552])
 
         edge_deltas = self.create_output(
             'edge_deltas',
