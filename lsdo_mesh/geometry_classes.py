@@ -1170,7 +1170,7 @@ class Mesh(object):
                     new_edge_coords[2*i+1] * np.cos(new_edge_coords[2*i]),
                     new_edge_coords[2*i+1] * np.sin(new_edge_coords[2*i]),
                 ]
-        old_edge_coords = self.get_ffd_edge_old_coords(output_type)
+        old_edge_coords = self.get_ffd_edge_old_coords(output_type=output_type, instance=instance)
         edge_deltas = new_edge_coords - old_edge_coords
         edge_indices = []
         for i in range(len(edge_deltas)):

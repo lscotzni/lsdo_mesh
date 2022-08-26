@@ -62,12 +62,18 @@ class EdgeUpdateModel(Model):
         edge_param_sps_mat = edge_parametrization
     
 
-        new_edge_nodes = csdl.matvec(
+        new_edge_nodes_polar = csdl.matvec(
             edge_param_sps_mat, new_mesh_points
-        )
+        ) # OUTPUT IS CURRENTLY IN POLAR COORDINATES (THETA, R)
 
-        edge_deltas_temp = new_edge_nodes[:-2] - initial_edge_coords
-        self.print_var(edge_deltas_temp[736:1552]) # used to check deltas of two cases
+        # edge_deltas_temp = new_edge_nodes_polar[:-2] - initial_edge_coords
+        # self.print_var(edge_deltas_temp[736:1552]) # used to check deltas of two cases
+
+        # new_edge_nodes = self.create_output(
+        #     'new_edge_nodes',
+        #     val=0.,
+        #     shape=initial_edge_coords.shape,
+        # ) # CONVERTING OUTPUT TO CARTESIAN COORDINATES
 
         edge_deltas = self.create_output(
             'edge_deltas',
@@ -75,12 +81,15 @@ class EdgeUpdateModel(Model):
             shape=initial_edge_coords.shape,
         )
 
-        for i in range(int(initial_edge_coords.shape[0]/2)):
         # Ru: only works for the coarsest mesh
         # for i in range(350,600): (use this for block with the newest CSDL ONLY)
-            edge_deltas[2*i] = new_edge_nodes[2*i+1] * csdl.cos(new_edge_nodes[2*i]) - \
+        for i in range(int(initial_edge_coords.shape[0]/2)):
+            # new_edge_nodes[2*i] = new_edge_nodes_polar[2*i+1] * csdl.cos(new_edge_nodes_polar[2*i])
+            # new_edge_nodes[2*i+1] = new_edge_nodes_polar[2*i+1] * csdl.sin(new_edge_nodes_polar[2*i])
+
+            edge_deltas[2*i] = new_edge_nodes_polar[2*i+1] * csdl.cos(new_edge_nodes_polar[2*i]) - \
                 initial_edge_coords[2*i+1] * np.cos(initial_edge_coords[2*i])
-            edge_deltas[2*i+1] = new_edge_nodes[2*i+1] * csdl.sin(new_edge_nodes[2*i]) - \
+            edge_deltas[2*i+1] = new_edge_nodes_polar[2*i+1] * csdl.sin(new_edge_nodes_polar[2*i]) - \
                 initial_edge_coords[2*i+1] * np.sin(initial_edge_coords[2*i])
             # need the initial theta and r here to do the deformation step
         

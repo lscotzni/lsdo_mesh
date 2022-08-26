@@ -13,6 +13,10 @@
 - generalization for cartesian (x-y) coordinates as well
     - implementation is only in polar right now
 - clean up the FFD CSDL models (WIP)
+- test the linear shape parameter option
+    - constant works (used on the magnet radial change)
+    - **UPDATE**: a sample of this works for an azimuthal linear reduction of magnet width (test further)
+    - **UPDATE**: linear and constant shape parameters tested together and works as hoped
 - COME UP WITH A CONSISTENT NAMING SCHEME FOR EDGES AND VERTICES TO AVOID CONFUSION
     - mesh vertices: user-defined points (making up major subdomains like the 4 points defining a magnet)
     - edge nodes: nodes along edges between vertices
