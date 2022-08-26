@@ -67,7 +67,7 @@ class EdgeUpdateModel(Model):
         )
 
         edge_deltas_temp = new_edge_nodes[:-2] - initial_edge_coords
-        self.print_var(edge_deltas_temp[736:1552])
+        self.print_var(edge_deltas_temp[736:1552]) # used to check deltas of two cases
 
         edge_deltas = self.create_output(
             'edge_deltas',
