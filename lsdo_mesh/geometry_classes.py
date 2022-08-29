@@ -560,7 +560,7 @@ class Mesh(object):
                         if parameters[1] == 'x':
                             sparse_val.extend(vec)
                         elif parameters[1] == 'theta':
-                            sparse_val.extend([-1 * entry for entry in vec])
+                            sparse_val.extend([1 * entry for entry in vec])
                     elif dim == 1:
                         sparse_val.extend([-1/2, -1/2, 1/2, 1/2])
                         sparse_col.extend([

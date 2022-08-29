@@ -19,7 +19,7 @@ class ShapeParameterUpdateModel(csdl.Model):
 
         LIST OF SHAPE PARAMETERS:
             - inner_stator_radius_sp
-            - magnet_thickness_sp
+            - magnet_pos_delta_sp
             - magnet_width_sp
             - outer_stator_radius_sp
             - rotor_radius_sp
@@ -38,10 +38,10 @@ class ShapeParameterUpdateModel(csdl.Model):
         #     1*shaft_radius_dv
         # )
 
-        magnet_thickness_dv = self.create_input('magnet_thickness_dv', val=0.)
-        magnet_thickness_sp = self.register_output(
-            'magnet_thickness_sp',
-            1*magnet_thickness_dv
+        magnet_pos_delta_dv = self.create_input('magnet_pos_delta_dv', val=0.)
+        magnet_pos_delta_sp = self.register_output(
+            'magnet_pos_delta_sp',
+            1*magnet_pos_delta_dv
         )
 
         magnet_width_dv = self.create_input('magnet_width_dv', val=0.)
@@ -55,7 +55,7 @@ class ShapeParameterUpdateModel(csdl.Model):
         INDIVIDUAL MESH MODELS WITHIN INSTANCE MODELS
         LIST OF SHAPE PARAMETERS:
             - inner_stator_radius_sp
-            - magnet_thickness_sp
+            - magnet_pos_delta_sp
             - magnet_width_sp
             - outer_stator_radius_sp
             - rotor_radius_sp
@@ -127,7 +127,7 @@ def generateMeshMovement(mesh_object, angle=0., instance=0):
     delta = np.zeros((num_vertices, 2))
     # delta = np.zeros((8, 2))
     delta_test_radial = -0.002
-    delta_test_azim = -0.06
+    delta_test_azim = -0.02
     for i in range(num_vertices):
         delta[i, 1] = delta_test_radial # shifting first magnet + air gaps radially in by 0.02 m
         if np.mod(i,2) == 0:
@@ -190,9 +190,10 @@ if __name__ == '__main__':
     # rep = csdl.GraphRepresentation(ffd_connection_model)
     # sim = Simulator(rep)
     sim = Simulator(ffd_connection_model)
-    sim['magnet_thickness_dv'] = -0.002
-    sim['magnet_width_dv'] = -0.06
+    sim['magnet_pos_delta_dv'] = -0.002
+    sim['magnet_width_dv'] = -0.01
     sim.run()
+    # sim.visualize_implementation()
     # sim.check_partials(compact_print=False)
     # edge_deltas_csdl = sim['edge_deltas']
 
@@ -242,13 +243,15 @@ if __name__ == '__main__':
             old_edge_coords_reformat[i,:] = [old_edge_coords[2*i], old_edge_coords[2*i+1]]
             edge_deltas_reformat[i,:] = [edge_deltas[2*i], edge_deltas[2*i+1]]
 
-        plt.figure(2*instance + 1)
-        plt.plot(old_edge_coords_reformat[:,0] + edge_deltas_reformat[:,0], old_edge_coords_reformat[:,1] + edge_deltas_reformat[:,1], 'r*', label='new edge coords')
-        plt.plot(old_edge_coords_reformat[:,0], old_edge_coords_reformat[:,1], 'k*', label='old edge coords')
-        plt.axis('equal')
-        plt.title('Edge deformations from sample methods for instance {}'.format(instance+1))
-        plt.grid()
-        plt.legend()
+        new_edge_coords_reformat = old_edge_coords_reformat + edge_deltas_reformat
+
+        # plt.figure(3*instance + 1)
+        # plt.plot(new_edge_coords_reformat[:,0], new_edge_coords_reformat[:,1], 'r*', label='new edge coords')
+        # plt.plot(old_edge_coords_reformat[:,0], old_edge_coords_reformat[:,1], 'k*', label='old edge coords')
+        # plt.axis('equal')
+        # plt.title('Edge deformations from sample methods for instance {}'.format(instance+1))
+        # plt.grid()
+        # plt.legend()
 
         # PLOTTING OF OLD EDGE COORDINATES AND EDGE DELTAS CALCULATED FROM CSDL
         num_csdl_points = int(len(edge_deltas_csdl)/2)
@@ -260,8 +263,24 @@ if __name__ == '__main__':
             old_edge_coords_reformat_csdl[i,1] = old_edge_coords_csdl[2*i+1]*np.sin(old_edge_coords_csdl[2*i])
             edge_deltas_reformat_csdl[i,:] = [edge_deltas_csdl[2*i], edge_deltas_csdl[2*i+1]]
 
-        plt.figure(2*instance + 2)
-        plt.plot(old_edge_coords_reformat_csdl[:,0] + edge_deltas_reformat_csdl[:,0], old_edge_coords_reformat_csdl[:,1] + edge_deltas_reformat_csdl[:,1], 'r*', label='csdl new edge coords')
+        new_edge_coords_reformat_csdl = old_edge_coords_reformat_csdl + edge_deltas_reformat_csdl
+
+        plt.figure(3*instance + 2)
+        plt.plot(new_edge_coords_reformat_csdl[:,0], new_edge_coords_reformat_csdl[:,1], 'r*', label='csdl new edge coords')
+        plt.plot(old_edge_coords_reformat_csdl[:,0], old_edge_coords_reformat_csdl[:,1], 'k*', label='csdl old edge coords')
+        plt.axis('equal')
+        plt.title('Edge deformations from CSDL FFD Models for instance {}'.format(instance+1))
+        plt.grid()
+        plt.legend()
+
+        plt.figure(3*instance + 3)
+        for i in range(new_edge_coords_reformat_csdl.shape[0]):
+            if any(edge_deltas_reformat_csdl[i,:]):
+                plt.plot(
+                    [old_edge_coords_reformat_csdl[i,0], new_edge_coords_reformat_csdl[i,0]],
+                    [old_edge_coords_reformat_csdl[i,1], new_edge_coords_reformat_csdl[i,1]],
+                    'r-*'
+                )
         plt.plot(old_edge_coords_reformat_csdl[:,0], old_edge_coords_reformat_csdl[:,1], 'k*', label='csdl old edge coords')
         plt.axis('equal')
         plt.title('Edge deformations from CSDL FFD Models for instance {}'.format(instance+1))

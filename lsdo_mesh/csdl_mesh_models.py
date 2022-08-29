@@ -2,6 +2,43 @@ import numpy as np
 import csdl
 from csdl import Model
 
+
+class ShapeParameterModel(Model):
+    def initialize(self):
+        self.parameters.declare('shape_parameter_list_input')
+        self.parameters.declare('shape_parameter_index_input')
+        self.parameters.declare('shape_parametrization')
+
+    def define(self):
+        shape_parameter_list_input          = self.parameters['shape_parameter_list_input']
+        shape_parameter_index_input         = self.parameters['shape_parameter_index_input']
+        shape_parametrization               = self.parameters['shape_parametrization']
+        # the shape parameter list is coming directly from lsdo_mesh; the user will define the DVs and SPs and connect them,
+        # and in here we need to add the SPs as variables and concatenate into a large list looping through the list
+
+        shape_parameter_total   = int(np.dot(np.ones((len(shape_parameter_list_input),)),shape_parameter_index_input))
+        shape_param_vec = self.create_output(
+            name='shape_param_vec',
+            shape=(shape_parameter_total,)
+        )
+
+        counter = 0
+        for i, name in enumerate(shape_parameter_list_input):
+            local_SP    = self.declare_variable(name=name) # declaring variable for actual SP
+            len_SP      = shape_parameter_index_input[i]
+            # print(len_SP)
+            expanded_local_SP  = csdl.expand(local_SP, (len_SP,))
+            # print(expanded_local_SP.shape)
+            shape_param_vec[counter:counter + len_SP] = expanded_local_SP
+            counter += len_SP
+
+        delta_ffd_cp = csdl.matvec(shape_parametrization, shape_param_vec)
+
+        delta_ffd_cp = self.register_output(
+            'delta_ffd_cp',
+            var=delta_ffd_cp,
+        )
+
 class EdgeUpdateModel(Model):
     def initialize(self):
         
@@ -60,42 +97,26 @@ class EdgeUpdateModel(Model):
 
         # need edge points here to add to the deltas
         edge_param_sps_mat = edge_parametrization
-    
+        new_edge_coords = self.register_output(
+            'new_edge_coords',
+            csdl.matvec(edge_param_sps_mat, new_mesh_points)[:-2,] # OUTPUT IS CURRENTLY IN POLAR COORDINATES (THETA, R)
+        ) # [:-2,] used to parse out origin
 
-        new_edge_nodes_polar = csdl.matvec(
-            edge_param_sps_mat, new_mesh_points
-        ) # OUTPUT IS CURRENTLY IN POLAR COORDINATES (THETA, R)
+        param_mode = 'polar'
+        if param_mode == 'cartesian':
+            edge_deltas = self.register_output(
+                'edge_deltas',
+                new_edge_coords - initial_edge_coords
+            )
+        elif param_mode == 'polar':
+            self.add(
+                VectorizedPolartoCartesianModel(
+                    initial_edge_coords=initial_edge_coords
+                ),
+                'coordinate_conversion_model'
+            ) # CONTAINS OUTPUT FOR edge_deltas
 
-        # edge_deltas_temp = new_edge_nodes_polar[:-2] - initial_edge_coords
-        # self.print_var(edge_deltas_temp[736:1552]) # used to check deltas of two cases
-
-        # new_edge_nodes = self.create_output(
-        #     'new_edge_nodes',
-        #     val=0.,
-        #     shape=initial_edge_coords.shape,
-        # ) # CONVERTING OUTPUT TO CARTESIAN COORDINATES
-
-        edge_deltas = self.create_output(
-            'edge_deltas',
-            val=0.,
-            shape=initial_edge_coords.shape,
-        )
-
-        # Ru: only works for the coarsest mesh
-        # for i in range(350,600): (use this for block with the newest CSDL ONLY)
-        for i in range(int(initial_edge_coords.shape[0]/2)):
-            # new_edge_nodes[2*i] = new_edge_nodes_polar[2*i+1] * csdl.cos(new_edge_nodes_polar[2*i])
-            # new_edge_nodes[2*i+1] = new_edge_nodes_polar[2*i+1] * csdl.sin(new_edge_nodes_polar[2*i])
-
-            edge_deltas[2*i] = new_edge_nodes_polar[2*i+1] * csdl.cos(new_edge_nodes_polar[2*i]) - \
-                initial_edge_coords[2*i+1] * np.cos(initial_edge_coords[2*i])
-            edge_deltas[2*i+1] = new_edge_nodes_polar[2*i+1] * csdl.sin(new_edge_nodes_polar[2*i]) - \
-                initial_edge_coords[2*i+1] * np.sin(initial_edge_coords[2*i])
-            # need the initial theta and r here to do the deformation step
-        
         # ------------------------------------------------------------------------
-        
-        
         # CSDL OPERATIONS:
         # create_input: need to use this for setting the CSDL objects of the parameters  (immutable)
         # create_output: explicitly computed output (will use this for intermediate calculations)
@@ -103,38 +124,30 @@ class EdgeUpdateModel(Model):
         # register_output: we will use this to register the final set of edge node coordinates
         # new_point_location = matvec(ffd_param, ffd_deltas) + original_points
 
-class ShapeParameterModel(Model):
+
+class VectorizedPolartoCartesianModel(Model):
+    '''
+    THIS MODEL TAKES IN THE NEW EDGE COORDINATES AND THE INITIAL EDGE COORDINATES AND COMPUTES THE EDGE DELTAS IN POLAR COORDINATES
+    '''
     def initialize(self):
-        self.parameters.declare('shape_parameter_list_input')
-        self.parameters.declare('shape_parameter_index_input')
-        self.parameters.declare('shape_parametrization')
+        self.parameters.declare('initial_edge_coords')
 
     def define(self):
-        shape_parameter_list_input          = self.parameters['shape_parameter_list_input']
-        shape_parameter_index_input         = self.parameters['shape_parameter_index_input']
-        shape_parametrization               = self.parameters['shape_parametrization']
-        # the shape parameter list is coming directly from lsdo_mesh; the user will define the DVs and SPs and connect them,
-        # and in here we need to add the SPs as variables and concatenate into a large list looping through the list
+        initial_edge_coords = self.parameters['initial_edge_coords']
+        vector_length = initial_edge_coords.shape[0]
 
-        shape_parameter_total   = int(np.dot(np.ones((len(shape_parameter_list_input),)),shape_parameter_index_input))
-        shape_param_vec = self.create_output(
-            name='shape_param_vec',
-            shape=(shape_parameter_total,)
+        new_edge_coords = self.declare_variable(
+            'new_edge_coords',
+            shape=(vector_length,)
         )
 
-        counter = 0
-        for i, name in enumerate(shape_parameter_list_input):
-            local_SP    = self.declare_variable(name=name) # declaring variable for actual SP
-            len_SP      = shape_parameter_index_input[i]
-            # print(len_SP)
-            expanded_local_SP  = csdl.expand(local_SP, (len_SP,))
-            # print(expanded_local_SP.shape)
-            shape_param_vec[counter:counter + len_SP] = expanded_local_SP
-            counter += len_SP
-
-        delta_ffd_cp = csdl.matvec(shape_parametrization, shape_param_vec)
-
-        delta_ffd_cp = self.register_output(
-            'delta_ffd_cp',
-            var=delta_ffd_cp,
+        edge_deltas = self.create_output(
+            'edge_deltas',
+            shape=(vector_length,)
         )
+
+        for i in range(int(vector_length/2)):
+            edge_deltas[2*i] = new_edge_coords[2*i+1] * csdl.cos(new_edge_coords[2*i]) - \
+                initial_edge_coords[2*i+1] * np.cos(initial_edge_coords[2*i])
+            edge_deltas[2*i+1] = new_edge_coords[2*i+1] * csdl.sin(new_edge_coords[2*i]) - \
+                initial_edge_coords[2*i+1] * np.sin(initial_edge_coords[2*i])
