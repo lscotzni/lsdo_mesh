@@ -1,9 +1,11 @@
+from re import L
 import gmsh
 import numpy as np
 import scipy as sp
 from scipy.linalg import norm
 from scipy.sparse import csc_matrix, csr_matrix, lil_matrix
 import sys
+import copy
 
 import csdl
 from csdl import Model
@@ -479,14 +481,13 @@ class Mesh(object):
             
             self.edge_nodes_instances.append(edge_node_coords)
 
-            # STUFF THAT DOESN'T CHANGE WITH MESH INSTANCES
+            # STUFF THAT DOESN'T CHANGE WITH MESH INSTANCES (BE CAREFUL, THIS MAY BE A CONCERING ASSUMPTION)
             if a == 0:
                 self.gmsh_order_point_node_ind = self.reorder_points_to_gmsh(coordinate_system='cartesian')[1] # NEED ONLY ONCE
                 self.edge_node_indices = []
                 for curve in self.gmsh_curve_entities[:]:
                     info = gmsh.model.mesh.getNodes(dim=1, tag = curve[1], includeBoundary=True, returnParametricCoord=False)
                     self.edge_node_indices.append(info[0]) # the node indices along an edge; last two are the start and end nodes
-            
             print('---')
             # print(gmsh.model.mesh.getNodes(dim=1, includeBoundary=True, returnParametricCoord=False)[1])
             aaa.append(gmsh.model.mesh.getNodes(dim=1, includeBoundary=True, returnParametricCoord=False)[0])
@@ -501,6 +502,7 @@ class Mesh(object):
             gmsh.finalize()
 
             os.system('python3 msh2xdmf.py -d 2 ' + self.name + '_{}.msh'.format(str(a+1)))
+
         # print(aaa[1] - aaa[0])
         # coord_diff = bbb[1] - bbb[0]
         # asdf = np.where(coord_diff != 0.)
@@ -704,6 +706,18 @@ class Mesh(object):
 
                 # loop for the number of children within the face
                 embedded_points = vars(face)['embedded_points'] # need to apply rotation here for points with rotated instances
+
+                print('face ', face_ind)
+                print('P00:', P00)
+                print('P11:',P11)
+
+                # adjust face coordinates for discontinuity at "-" x-axis
+                theta_discontinuity = 0
+                if P00[0] < 0 and P11[0] > 0 and abs(P11[0] - P00[0]) > np.pi:
+                    theta_discontinuity = 1
+                    P00[0], P11[0] = P11[0], P00[0] + 2*np.pi # ORDER SWAPPED HERE BECAUSE OF 2pi ADDITION
+                    print('after discontinuity fix:', P00, P11)
+
                 for point_ind, point in enumerate(embedded_points):
                     if a != 0:
                         if all([vars(embedded_points[i])['rotate_instance'] for i in range(len(embedded_points))]):
@@ -713,7 +727,7 @@ class Mesh(object):
                             )[0]
                     point_coords_to_reorder = np.array(point.return_coordinates(output_type='cartesian'))
                     point_coords            = point.return_coordinates(coordinate_system)[:2]
-                    # print(point_coords)
+                    print(point_coords)
         
                     # might be good to keep this comparison in cartesian coordinates
                     # polar coordinates are tough b/c np.arctan2() returns angle in range [-pi, pi]
@@ -730,9 +744,9 @@ class Mesh(object):
                     # print('index:', index)
 
                     # ADD PI-CONDITION 
-                    if P00[0] < 0 and P11[0] > 0 and abs(P11[0] - P00[0]) > np.pi:
-                        pass
-                    # 
+                    if theta_discontinuity == 1:
+                        if point_coords[0] < 0:
+                            point_coords[0] += 2*np.pi
                     
                     [u, v] = [
                         (point_coords[0] - P00[0]) / (P11[0] - P00[0]),
@@ -755,13 +769,8 @@ class Mesh(object):
                         u * v,              # P11
                         u * v,              # P11
                     ])
-
-                    # print(sparse_row)
-                    # print(sparse_col)
-                    # print(sparse_val)
-                    # if point_ind == 1:
-                    #     exit()
-
+                
+            # exit()
             if a == 0:
                 self.ffd_face_sps_mat = csc_matrix(
                     (sparse_val, (sparse_row, sparse_col)),
@@ -830,7 +839,10 @@ class Mesh(object):
             
             # use self.edge_boundary_nodes and self.edge_node_indices
             for i, edge in enumerate(self.edge_node_indices):
-                edge_nodes = edge_node_coords[i]
+                # edge_nodes = edge_node_coords[i]
+                edge_nodes = copy.deepcopy(edge_node_coords[i])
+                print('original edge nodes:', edge_nodes)
+                # exit()
                 first_edge = edge_nodes[0]
                 # print(edge_nodes)
                 # exit()
@@ -848,39 +860,35 @@ class Mesh(object):
                 elif all([np.linalg.norm(node[1] - first_edge[1]) < 1.e-6 for node in edge_nodes[1:]]):
                     # CONSTANT RADIUS CURVE
                     var_dim = 0  # THIS MEANS USE THETA TO PARAMETRIZE
-                
-                pi_sign_mismatch = 0
-                pi_sign_start, pi_sign_end = 0, 0
-                if np.pi in edge_nodes[-2] or np.pi in edge_nodes[-1]:
-                    [pi_ind, pi_ind_dim] = np.where(abs(np.pi - edge_nodes) < 1e-8)
-
-                    # if isinstance(pi_ind, int): # this condition is never true since pi_ind is always a list, but still works (with positive u outside of [0,1])
-                    if len(pi_ind) == 1:
-                        if np.sign(edge_nodes[pi_ind, pi_ind_dim]) != np.sign(edge_nodes[pi_ind - 1, pi_ind_dim]):
-                            pi_sign_mismatch = 1
-                            if pi_ind[0] == len(edge_nodes) - 1:
-                                pi_sign_end = 1
-                            elif pi_ind[0] == len(edge_nodes) - 2:
-                                pi_sign_start = 1
 
                 start = np.where(self.gmsh_order_point_node_ind == int(edge[-2]))[0][0]
                 end = np.where(self.gmsh_order_point_node_ind == int(edge[-1]))[0][0]
-                # print('start, end:', start, end)
-                # end = int(edge[-1] - 1)
+                
                 num_internal_nodes = len(edge) - 2
-                # print(start, end, num_internal_nodes)
+
+                # WORK-AROUND FOR THE DISCONTINUITY AT THETA=PI
+                theta_discontinuity = 0
+                min_angle = min(edge_nodes[-2][0], edge_nodes[-1][0])
+                max_angle = max(edge_nodes[-2][0], edge_nodes[-1][0])
+                if abs(max_angle - min_angle) > np.pi and np.sign(max_angle) != np.sign(min_angle):
+                    theta_discontinuity = 1
+                    if edge_nodes[-2,0] == min_angle:
+                        edge_nodes[-2,0] += 2*np.pi
+                    elif edge_nodes[-1,0] == min_angle:
+                        edge_nodes[-1,0] += 2*np.pi
+                    # min_angle, max_angle = max_angle, min_angle + 2*np.pi
+                    # edge_nodes[-2, 0] = min_angle
+                    # edge_nodes[-1, 0] = max_angle
+
                 u = []
                 for j in range(num_internal_nodes):
+                    if theta_discontinuity == 1 and var_dim == 0:
+                        if edge_nodes[j, var_dim] < 0:
+                            edge_nodes[j, var_dim] += 2*np.pi
                     u.append(
-                        (edge_nodes[j, var_dim] - edge_nodes[-2, var_dim] * (-1)**pi_sign_start) / \
-                        (edge_nodes[-1, var_dim] * (-1)**pi_sign_end - edge_nodes[-2, var_dim] * (-1)**pi_sign_start)
+                        (edge_nodes[j, var_dim] - edge_nodes[-2, var_dim]) / \
+                        (edge_nodes[-1, var_dim] - edge_nodes[-2, var_dim])
                     )
-
-                    # if u[j] < 0 or u[j] > 1:
-                    #     print('parametrization (u) outside of bounds between 0 and 1; u = ', u[j])
-
-                    # if 1 - u[j] < 0 or 1 - u[j] > 1:
-                    #     print('parametrization converse (1-u) outside of bounds between 0 and 1; 1 - u = ', 1 - u[j])
 
                     sparse_row.extend(
                         [int(2 * (edge[j] - 1))] * 2 + [int(2 * (edge[j] - 1) + 1)] * 2,
@@ -891,25 +899,21 @@ class Mesh(object):
                         2 * (start) + 1, 
                         2 * (end) + 1,
                     ])
-                    if pi_sign_mismatch:
-                        # this is where we get a negative parametric value (essentially saying u * pi = -u * -pi)
-                        sparse_val.extend([
-                            (1 - u[j]) * (-1)**pi_sign_start,
-                            u[j], 
-                            (1 - u[j]) * (-1)**pi_sign_end,
-                            u[j],
-                        ])
-                    else:
-                        sparse_val.extend([1 - u[j], u[j]] * 2)
-            # OLD WAY
-            # self.edge_param_sps_mat[sparse_row, sparse_col] = sparse_val
-            # self.edge_param_sps_mat.tocsc()
-
+                    sparse_val.extend([
+                        (1 - u[j]),
+                        u[j], 
+                        (1 - u[j]),
+                        u[j],
+                    ])
+                print('updated edge nodes:', edge_nodes)
+                print('theta_discontinuity:', theta_discontinuity)
+            
             edge_param_sps_mat = csc_matrix(
                 (sparse_val, (sparse_row, sparse_col)),
                 shape=(int((num_edge_nodes + 1) * self.dim), int((num_points) * self.dim)),
             )
             self.edge_param_sps_mat_list.append(edge_param_sps_mat)
+        # exit()
 
 
         # ------------ TESTING OUTPUT OF APPLYING PARAMETRIZATION MATRIX TO ORIGINAL POINTS ------------
@@ -979,15 +983,20 @@ class Mesh(object):
         return self.mesh_models, self.shape_parameter_model
 
     def return_ffd_parameters(self, coordinate_system='cartesian'):
-        
-        self.initial_edge_coords_instances = []
-        for i in range(len(self.rotation_angles)):
-            initial_edge_coords_instance = self.get_ffd_edge_old_coords(
-                output_type=coordinate_system, 
-                instance=i
-            )
-            self.initial_edge_coords_instances.append(initial_edge_coords_instance[:-2]) # TRIMMING OUT ORIGIN
+        # OLD METHOD
+        # self.initial_edge_coords_instances = []
+        # for i in range(len(self.rotation_angles)):
+        #     initial_edge_coords_instance = self.get_ffd_edge_old_coords(
+        #         output_type=coordinate_system, 
+        #         instance=i
+        #     )
+        #     self.initial_edge_coords_instances.append(initial_edge_coords_instance[:-2]) # TRIMMING OUT ORIGIN
 
+        # NEW METHOD FOR EDGE COORDINATES:
+        instances = len(self.rotation_angles)
+        self.initial_edge_coords_instances = self.get_original_edge_coords(
+            instances=instances
+        ) # OUTPUT TYPE IGNORED HERE
         self.ffd_param_dict = {}
 
         self.ffd_param_dict['shape_parameter_list_input'] = self.shape_parameter_list
@@ -1148,6 +1157,60 @@ class Mesh(object):
                     old_edge_coords[2*i+1] * np.sin(old_edge_coords[2*i]),
                 ]
         return old_edge_coords
+
+    def get_original_edge_coords(self, output_type=None, instances=1):
+        '''
+        DATA NEEDED:
+            - self.edge_node_indices
+            - self.edge_nodes_instances (length = number of rotation instances)
+        '''
+        num_edge_nodes = max([max(node) for node in self.edge_node_indices])
+        indices = []
+        num_edge_groups = len(self.edge_node_indices)
+        for edge_group in self.edge_node_indices:
+            indices.extend(edge_group)
+        indices = np.array(indices)
+        
+        extraction_indices = []
+        for i in range(1, int(num_edge_nodes+1)):
+            first_index = np.where(indices == i)[0][0] # if error occurs, check this double indexing
+            extraction_indices.append(first_index)
+        
+        initial_edge_coords_instances = []
+        for i in range(instances):
+            # FORMATTING COORDINATES IN AN ORDER SIMILAR TO THE INDICES ABOVE
+            point_coords = []
+            
+            for point_coord in self.edge_nodes_instances[i]:
+                point_coords.extend(point_coord)
+            
+            extracted_initial_edge_coords = []
+            for j in range(len(extraction_indices)):
+                extraction_index = extraction_indices[j]
+                extracted_initial_edge_coords.append(point_coords[extraction_index][:2])
+
+            # initial_edge_coords_instance = np.zeros((num_edge_nodes, 2))
+            initial_edge_coords_instance = np.reshape(
+                np.array(extracted_initial_edge_coords),
+                (int(num_edge_nodes*2),)
+            )
+
+            # the current approach is in the coordinate system set at the top
+            # i.e. initial_edge_coords_instance is in whatever system set above
+            if False: 
+                if output_type == 'polar': # NEED TO FIX
+                    for j in range(num_edge_nodes):
+                        coords = initial_edge_coords_instance[j,:]
+                        initial_edge_coords_instance[j,:] = [
+                            np.arctan2(coords[1], coords[0]),
+                            np.linalg.norm(coords)
+                        ]
+
+            initial_edge_coords_instances.append(initial_edge_coords_instance)
+            # NOTE: may need to revisit to look at the trimming of the origin
+        
+        return initial_edge_coords_instances
+
         
     def test_ffd_edge_parametrization_polar(self, delta, output_type, instance=0):
         # if delta.shape != (int(4 * self.num_ffd_faces), 2):

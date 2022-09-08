@@ -10,20 +10,21 @@
 # --- TO-DO ---
 - fix parametrization of points for rotated instances (appearance of NaNs)
     - the issue currently in the FFD faces appears for a delta applied to theta, where the FFD face will cross over \theta=\pi, and this messes up the FFD face parametrization (run the test_magnet_FFD.py case and zoom into the magnet just above the "-" x-axis, and the theta delta is improperly computed)
+    - **UPDATE**: FFD face parametrization across "-" x-axis is fixed; currently working on edges
+    - **UPDATE (09/07)**: edge parametrization works now across "-" x-axis for magnet test
 - code clean-up
 - generalization for cartesian (x-y) coordinates as well
     - implementation is only in polar right now
-- clean up the FFD CSDL models (WIP)
-    - create a model for the polar-to-cartesian coordinate conversion (for ease of visualizing the N2)
-- test the linear shape parameter option
-    - constant works (used on the magnet radial change)
-    - **UPDATE**: a sample of this works for an azimuthal linear reduction of magnet width (test further)
-    - **UPDATE**: linear and constant shape parameters tested together and works as hoped
 
+- interface current magnet FFD test with Ru's code
+    - just to check the FFD-related stuff
 
+- expand the FFD faces to consider other parts of the motor mesh and put into a shape parameter model
 
 
 - COME UP WITH A CONSISTENT NAMING SCHEME FOR EDGES AND VERTICES TO AVOID CONFUSION
     - mesh vertices: user-defined points (making up major subdomains like the 4 points defining a magnet)
     - edge nodes: nodes along edges between vertices
     - mesh nodes: internal mesh nodes (deformation done by Ru's FEniCS mesh manipulation code)
+
+# --- NOTES ---

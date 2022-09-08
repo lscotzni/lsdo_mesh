@@ -2,7 +2,6 @@ import numpy as np
 import csdl
 from csdl import Model
 
-
 class ShapeParameterModel(Model):
     def initialize(self):
         self.parameters.declare('shape_parameter_list_input')
@@ -81,34 +80,24 @@ class EdgeUpdateModel(Model):
             'delta_mesh_points',
             var=delta_mesh_points,
         )
-        
-        mesh_instance = self.declare_variable(
-            'mesh_points',
-            val=mesh_points,
-            shape=mesh_points.shape
-        )
-    
-        new_mesh_points = mesh_instance + delta_mesh_points
-        new_mesh_points = self.register_output(
-            'new_mesh_points',
-            var=new_mesh_points,
-            # shape=new_mesh_points.shape
-        )
 
-        # need edge points here to add to the deltas
-        edge_param_sps_mat = edge_parametrization
-        new_edge_coords = self.register_output(
-            'new_edge_coords',
-            csdl.matvec(edge_param_sps_mat, new_mesh_points)[:-2,] # OUTPUT IS CURRENTLY IN POLAR COORDINATES (THETA, R)
+        edge_deltas_temp = self.register_output(
+            'edge_deltas_temp',
+            csdl.matvec(edge_parametrization, delta_mesh_points)[:-2],
         ) # [:-2,] used to parse out origin
 
         param_mode = 'polar'
         if param_mode == 'cartesian':
             edge_deltas = self.register_output(
                 'edge_deltas',
-                new_edge_coords - initial_edge_coords
+                edge_deltas_temp * 1.0
             )
         elif param_mode == 'polar':
+            new_edge_coords = edge_deltas_temp + initial_edge_coords
+            new_edge_coords = self.register_output(
+                'new_edge_coords',
+                new_edge_coords
+            )
             self.add(
                 VectorizedPolartoCartesianModel(
                     initial_edge_coords=initial_edge_coords
@@ -146,8 +135,22 @@ class VectorizedPolartoCartesianModel(Model):
             shape=(vector_length,)
         )
 
-        for i in range(int(vector_length/2)):
-            edge_deltas[2*i] = new_edge_coords[2*i+1] * csdl.cos(new_edge_coords[2*i]) - \
-                initial_edge_coords[2*i+1] * np.cos(initial_edge_coords[2*i])
-            edge_deltas[2*i+1] = new_edge_coords[2*i+1] * csdl.sin(new_edge_coords[2*i]) - \
-                initial_edge_coords[2*i+1] * np.sin(initial_edge_coords[2*i])
+        edge_deltas[::2] = new_edge_coords[1::2] * csdl.cos(new_edge_coords[::2]) - \
+            initial_edge_coords[1::2] * np.cos(initial_edge_coords[::2])
+        edge_deltas[1::2] = new_edge_coords[1::2] * csdl.sin(new_edge_coords[::2]) - \
+            initial_edge_coords[1::2] * np.sin(initial_edge_coords[::2])
+
+
+        # NOTE-S FROM VICTOR
+        # n = Model()
+
+        # m.add(n)
+
+        # with self.create_submodel('m') as m:
+        #     m = Model()
+        #     x = m.create_input('x')
+        #     m.register_output('y', 2*x)
+        #     with m.create_submodel('n') as n:
+        #         n.kjsdlja;djla
+        #     m.connect('n.a', 'b')
+            

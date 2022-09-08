@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import csdl
-from csdl_om import Simulator
-# from python_csdl_backend import Simulator
+# from csdl_om import Simulator
+from python_csdl_backend import Simulator
 from motor_project.geometry.motor_mesh_class import MotorMesh
 from lsdo_mesh.csdl_mesh_models import ShapeParameterModel, EdgeUpdateModel
 
@@ -174,9 +174,10 @@ if __name__ == '__main__':
             rotation_angles=rotor_rotations,
             base_angle=shift * np.pi/180,
         )
-        
+    
     mm.baseline_geometry=True
     mm.create_motor_mesh()
+    m = mm.motor_mesh_object
     parametrization_dict    = mm.ffd_param_dict # dictionary holding parametrization parameters
     unique_sp_list = sorted(set(parametrization_dict['shape_parameter_list_input']))
     print(unique_sp_list)
@@ -191,14 +192,14 @@ if __name__ == '__main__':
     # sim = Simulator(rep)
     sim = Simulator(ffd_connection_model)
     sim['magnet_pos_delta_dv'] = -0.002
-    sim['magnet_width_dv'] = -0.01
+    sim['magnet_width_dv'] = 0.02
     sim.run()
     # sim.visualize_implementation()
     # sim.check_partials(compact_print=False)
     # edge_deltas_csdl = sim['edge_deltas']
 
     ''' --- GETTING DATA FILES FOR INITIAL EDGE COORDS AND EDGE DELTAS BELOW --- '''
-    m = mm.motor_mesh_object
+    
 
     edge_coords_dir = 'edge_deformation_data'
     init_edge_coords    = 'init_edge_coords_'
@@ -265,13 +266,13 @@ if __name__ == '__main__':
 
         new_edge_coords_reformat_csdl = old_edge_coords_reformat_csdl + edge_deltas_reformat_csdl
 
-        plt.figure(3*instance + 2)
-        plt.plot(new_edge_coords_reformat_csdl[:,0], new_edge_coords_reformat_csdl[:,1], 'r*', label='csdl new edge coords')
-        plt.plot(old_edge_coords_reformat_csdl[:,0], old_edge_coords_reformat_csdl[:,1], 'k*', label='csdl old edge coords')
-        plt.axis('equal')
-        plt.title('Edge deformations from CSDL FFD Models for instance {}'.format(instance+1))
-        plt.grid()
-        plt.legend()
+        # plt.figure(3*instance + 2)
+        # plt.plot(new_edge_coords_reformat_csdl[:,0], new_edge_coords_reformat_csdl[:,1], 'r*', label='csdl new edge coords')
+        # plt.plot(old_edge_coords_reformat_csdl[:,0], old_edge_coords_reformat_csdl[:,1], 'k*', label='csdl old edge coords')
+        # plt.axis('equal')
+        # plt.title('Edge deformations from CSDL FFD Models for instance {}'.format(instance+1))
+        # plt.grid()
+        # plt.legend()
 
         plt.figure(3*instance + 3)
         for i in range(new_edge_coords_reformat_csdl.shape[0]):
@@ -280,6 +281,11 @@ if __name__ == '__main__':
                     [old_edge_coords_reformat_csdl[i,0], new_edge_coords_reformat_csdl[i,0]],
                     [old_edge_coords_reformat_csdl[i,1], new_edge_coords_reformat_csdl[i,1]],
                     'r-*'
+                )
+                plt.plot(
+                    [0.0, new_edge_coords_reformat_csdl[i,0]],
+                    [0.0, new_edge_coords_reformat_csdl[i,1]],
+                    'r-'
                 )
         plt.plot(old_edge_coords_reformat_csdl[:,0], old_edge_coords_reformat_csdl[:,1], 'k*', label='csdl old edge coords')
         plt.axis('equal')

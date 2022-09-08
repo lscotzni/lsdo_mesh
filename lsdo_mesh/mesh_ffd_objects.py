@@ -273,13 +273,16 @@ class Face(Entity):
                     Face(vertices, input_type='quad')
 
                 elif input_type == 'polar':
-                    max_pt = [max([np.linalg.norm(coord) for coord in coords]), max([np.arctan2(coord[1], coord[0]) for coord in coords])]
-                    min_pt = [min([np.linalg.norm(coord) for coord in coords]), min([np.arctan2(coord[1], coord[0]) for coord in coords])]
-                
-                    p1 = Vertex(max_pt[0] * (1 + delta), max_pt[1] * (1 + delta), mode='polar')
-                    p2 = Vertex(max_pt[0] * (1 + delta), min_pt[1] * (1 - delta), mode='polar')
-                    p3 = Vertex(min_pt[0] * (1 - delta), min_pt[1] * (1 - delta), mode='polar')
-                    p4 = Vertex(min_pt[0] * (1 - delta), max_pt[1] * (1 + delta), mode='polar')
+                    max_pt = np.array([max([np.linalg.norm(coord) for coord in coords]), max([np.arctan2(coord[1], coord[0]) for coord in coords])])
+                    min_pt = np.array([min([np.linalg.norm(coord) for coord in coords]), min([np.arctan2(coord[1], coord[0]) for coord in coords])])
+
+                    [r_avg, th_avg] = (max_pt + min_pt)/2
+                    [r_del, th_del] = (max_pt - min_pt)
+
+                    p1 = Vertex(r_avg + r_del * (1 + delta), th_avg + th_del/2 * (1 + delta), mode='polar')
+                    p2 = Vertex(r_avg + r_del * (1 + delta), th_avg - th_del/2 * (1 + delta), mode='polar')
+                    p3 = Vertex(r_avg - r_del * (1 + delta), th_avg - th_del/2 * (1 + delta), mode='polar')
+                    p4 = Vertex(r_avg - r_del * (1 + delta), th_avg + th_del/2 * (1 + delta), mode='polar')
 
                     vertices = [p1, p2, p3, p4]
                     self.face_vertices = vertices
