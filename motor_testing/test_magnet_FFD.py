@@ -97,8 +97,6 @@ class FFDModel(csdl.Model):
                 EdgeUpdateModel(
                     ffd_parametrization=param_dict['ffd_parametrization'][i],
                     edge_parametrization=param_dict['edge_parametrization'][i],
-                    mesh_points=param_dict['mesh_points'][i],
-                    ffd_cps=param_dict['ffd_cps'][i],
                     initial_edge_coords=param_dict['initial_edge_coordinates'][i],
                 ),
                 'edge_update_model_{}'.format(i+1),
@@ -192,7 +190,7 @@ if __name__ == '__main__':
     # sim = Simulator(rep)
     sim = Simulator(ffd_connection_model)
     sim['magnet_pos_delta_dv'] = -0.002
-    sim['magnet_width_dv'] = 0.02
+    sim['magnet_width_dv'] = -0.05
     sim.run()
     # sim.visualize_implementation()
     # sim.check_partials(compact_print=False)

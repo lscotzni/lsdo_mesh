@@ -43,8 +43,6 @@ class EdgeUpdateModel(Model):
         
         self.parameters.declare('ffd_parametrization')
         self.parameters.declare('edge_parametrization')
-        self.parameters.declare('mesh_points')
-        self.parameters.declare('ffd_cps')
         self.parameters.declare('initial_edge_coords')
 
         # STEPS:
@@ -60,8 +58,6 @@ class EdgeUpdateModel(Model):
         
         ffd_parametrization     = self.parameters['ffd_parametrization']
         edge_parametrization    = self.parameters['edge_parametrization']
-        mesh_points             = self.parameters['mesh_points']
-        ffd_cps                 = self.parameters['ffd_cps']
         initial_edge_coords     = self.parameters['initial_edge_coords']
 
         # SHAPE PARAMETER CONCATENATION:

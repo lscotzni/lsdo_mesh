@@ -974,8 +974,6 @@ class Mesh(object):
                 EdgeUpdateModel(
                     ffd_parametrization     = self.ffd_face_sps_mat_list[i],
                     edge_parametrization    = self.edge_param_sps_mat_list[i],
-                    mesh_points             = self.mesh_points_instances[i],
-                    ffd_cps                 = self.ffd_cp_instances[i],
                     initial_edge_coords     = self.initial_edge_coords_instances[i]
                 )
             )
@@ -1004,8 +1002,6 @@ class Mesh(object):
         self.ffd_param_dict['shape_parametrization'] = self.shape_param_sps_mat
         self.ffd_param_dict['ffd_parametrization'] = self.ffd_face_sps_mat_list
         self.ffd_param_dict['edge_parametrization'] = self.edge_param_sps_mat_list
-        self.ffd_param_dict['mesh_points'] = self.mesh_points_instances
-        self.ffd_param_dict['ffd_cps'] = self.ffd_cp_instances
         self.ffd_param_dict['initial_edge_coordinates'] = self.initial_edge_coords_instances
 
         '''
@@ -1039,8 +1035,6 @@ class Mesh(object):
             file_data = np.array(extracted_point_node_coords).reshape(dim*len(points),1)
             np.savetxt(self.point_node_coords_to_file + '_{}.txt'.format(int(self.instance+1)), file_data)
         
-        # print(extracted_point_node_coords)
-
         return extracted_point_node_coords
 
     def extract_point_node_indices(self, points): # called during GMSH operations in assemble_mesh
