@@ -607,6 +607,7 @@ class Mesh(object):
             P11 = [np.max(face_coords[:,0]), np.max(face_coords[:,1])]
 
             face_coords = np.array([P00, P10, P01, P11])
+            print(face_coords)
 
             start       = self.num_ffd_face_coords * face_ind
             end         = start + self.num_ffd_face_coords
@@ -692,6 +693,7 @@ class Mesh(object):
         for a, angle in enumerate(self.rotation_angles):
             sparse_row, sparse_col, sparse_val = [], [], []
             print('angle instance:', a)
+            print('num ffd faces: ', len(self.ffd_faces))
 
             ffd_face_control_pts = self.ffd_cp_instances[a]
 
@@ -702,22 +704,39 @@ class Mesh(object):
                 # need to extract P00 and P11 from self.ffd_face_control_pts
                 P00     = [ffd_face_control_pts[start], ffd_face_control_pts[start + 1]]
                 P11     = [ffd_face_control_pts[end - 2], ffd_face_control_pts[end - 1]]
-                # print(P00, P11)
+                print('min & max FFD control points:', P00, P11)
 
                 # loop for the number of children within the face
                 embedded_points = vars(face)['embedded_points'] # need to apply rotation here for points with rotated instances
 
-                print('face ', face_ind)
-                print('P00:', P00)
-                print('P11:',P11)
+                # CHECKING THE DIMENSION OF THE ENTITY IN THE FFD FACE FOR PARAMETRIZATION
+                dim_0_diff_norm = abs(P11[0] - P00[0])
+                dim_1_diff_norm = abs(P11[1] - P00[1])
+                if len(embedded_points) == 1: # THIS IS A SINGLE POINT WITHIN THE FFD FACE
+                    embedded_dim = 0
+                # elif (P00[0] == P11[0]) and (P00[1] != P11[1]): # THIS IS A CURVE CONSTANT IN DIMENSION 1 (x OR theta)
+                #     embedded_dim = 1
+                #     const_dim = 0
+                # elif (P00[0] != P11[0]) and (P00[1] == P11[1]): # THIS IS A CURVE CONSTANT IN DIM 2 (y OR r)
+                #     embedded_dim = 1
+                #     const_dim = 1
+                elif (dim_0_diff_norm < 1e-6) and (dim_1_diff_norm > 1e-6): # THIS IS A CURVE CONSTANT IN DIMENSION 1 (x OR theta)
+                    embedded_dim = 1
+                    const_dim = 0
+                elif (dim_0_diff_norm > 1e-6) and (dim_1_diff_norm < 1e-6): # THIS IS A CURVE CONSTANT IN DIM 2 (y OR r)
+                    embedded_dim = 1
+                    const_dim = 1
+                else:
+                    embedded_dim = 2
 
                 # adjust face coordinates for discontinuity at "-" x-axis
                 theta_discontinuity = 0
                 if P00[0] < 0 and P11[0] > 0 and abs(P11[0] - P00[0]) > np.pi:
                     theta_discontinuity = 1
+                    # P00[0], P11[0] = P11[0], P00[0] + 2*np.pi # ORDER SWAPPED HERE BECAUSE OF 2pi ADDITION
                     P00[0], P11[0] = P11[0], P00[0] + 2*np.pi # ORDER SWAPPED HERE BECAUSE OF 2pi ADDITION
-                    print('after discontinuity fix:', P00, P11)
-
+                print('theta_discontinuity:', theta_discontinuity)
+                print('FFD CPs for parametrization:', P00, P11)
                 for point_ind, point in enumerate(embedded_points):
                     if a != 0:
                         if all([vars(embedded_points[i])['rotate_instance'] for i in range(len(embedded_points))]):
@@ -727,7 +746,6 @@ class Mesh(object):
                             )[0]
                     point_coords_to_reorder = np.array(point.return_coordinates(output_type='cartesian'))
                     point_coords            = point.return_coordinates(coordinate_system)[:2]
-                    print(point_coords)
         
                     # might be good to keep this comparison in cartesian coordinates
                     # polar coordinates are tough b/c np.arctan2() returns angle in range [-pi, pi]
@@ -744,15 +762,29 @@ class Mesh(object):
                     # print('index:', index)
 
                     # ADD PI-CONDITION 
+                    print('point_coords before:', point_coords)
                     if theta_discontinuity == 1:
                         if point_coords[0] < 0:
                             point_coords[0] += 2*np.pi
-                    
-                    [u, v] = [
-                        (point_coords[0] - P00[0]) / (P11[0] - P00[0]),
-                        (point_coords[1] - P00[1]) / (P11[1] - P00[1]),
-                    ]
-                    # print(u,v)
+                    print('point_coords:', point_coords)
+                    print('embedded_dim: ', embedded_dim)
+                    if embedded_dim == 0:
+                        [u, v] = [1, 1]
+                    elif embedded_dim == 1:
+                        print('const_dim: ', const_dim)
+                        if const_dim == 0:
+                            [u,v] = [1, (point_coords[1] - P00[1]) / (P11[1] - P00[1])]
+                        elif const_dim == 1:
+                            [u,v] = [(point_coords[0] - P00[0]) / (P11[0] - P00[0]), 1]
+                    else:
+                        [u, v] = [
+                            (point_coords[0] - P00[0]) / (P11[0] - P00[0]),
+                            (point_coords[1] - P00[1]) / (P11[1] - P00[1]),
+                        ]
+
+                    print('u & v:', u,v)
+                    if np.any([i < 0 for i in [u,v]])  or np.any([i > 1 for i in [u,v]]) :
+                        print('outside of bounds of 0 & 1')
 
                     for i in range(4):
                         sparse_row.extend(
@@ -841,7 +873,6 @@ class Mesh(object):
             for i, edge in enumerate(self.edge_node_indices):
                 # edge_nodes = edge_node_coords[i]
                 edge_nodes = copy.deepcopy(edge_node_coords[i])
-                print('original edge nodes:', edge_nodes)
                 # exit()
                 first_edge = edge_nodes[0]
                 # print(edge_nodes)
@@ -905,8 +936,6 @@ class Mesh(object):
                         (1 - u[j]),
                         u[j],
                     ])
-                print('updated edge nodes:', edge_nodes)
-                print('theta_discontinuity:', theta_discontinuity)
             
             edge_param_sps_mat = csc_matrix(
                 (sparse_val, (sparse_row, sparse_col)),

@@ -44,11 +44,11 @@ class ShapeParameterUpdateModel(csdl.Model):
             1*magnet_pos_delta_dv
         )
 
-        magnet_width_dv = self.create_input('magnet_width_dv', val=0.)
-        magnet_width_sp = self.register_output(
-            'magnet_width_sp',
-            1*magnet_width_dv
-        )
+        # magnet_width_dv = self.create_input('magnet_width_dv', val=0.)
+        # magnet_width_sp = self.register_output(
+        #     'magnet_width_sp',
+        #     1*magnet_width_dv
+        # )
 
         '''
         THE FINAL OUTPUTS HERE ARE THE SHAPE PARAMETERS THAT FEED INTO THE 
@@ -174,6 +174,7 @@ if __name__ == '__main__':
         )
     
     mm.baseline_geometry=True
+    mm.magnet_shift_only = True
     mm.create_motor_mesh()
     m = mm.motor_mesh_object
     parametrization_dict    = mm.ffd_param_dict # dictionary holding parametrization parameters
@@ -190,7 +191,7 @@ if __name__ == '__main__':
     # sim = Simulator(rep)
     sim = Simulator(ffd_connection_model)
     sim['magnet_pos_delta_dv'] = -0.002
-    sim['magnet_width_dv'] = -0.05
+    # sim['magnet_width_dv'] = -0.05
     sim.run()
     # sim.visualize_implementation()
     # sim.check_partials(compact_print=False)

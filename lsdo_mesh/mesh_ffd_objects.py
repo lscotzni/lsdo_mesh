@@ -221,7 +221,7 @@ class Face(Entity):
         self.embedded_points = []
 
         if isinstance(args[0], Point) or all([isinstance(arg, Point) for arg in args[0]]):
-            delta /= 100.
+            delta /= 1000.
             if isinstance(args[0], Point):
                 self.embedded_points.append(args[0])
                 delta /= 100.
@@ -255,7 +255,9 @@ class Face(Entity):
                 # like self.embedded_points
             # elif len(args[0]) != 1:
             else:
+                delta = 0.
                 self.embedded_points.extend(args[0])
+                
                 coords = []
                 np.array(coords.extend([arg.return_coordinates()[:2] for arg in args[0]]))
                 # line above will return CARTESIAN COORDINATES for simplicity (do not change)
@@ -273,19 +275,39 @@ class Face(Entity):
                     Face(vertices, input_type='quad')
 
                 elif input_type == 'polar':
-                    max_pt = np.array([max([np.linalg.norm(coord) for coord in coords]), max([np.arctan2(coord[1], coord[0]) for coord in coords])])
-                    min_pt = np.array([min([np.linalg.norm(coord) for coord in coords]), min([np.arctan2(coord[1], coord[0]) for coord in coords])])
+                    # NOTE: THIS NEEDS TO BE FIXED
+                    # NOTE: FOR ANY FFD FACE CROSSING THE "-x"-axis, THE MAX POINTS WILL BE THE MOST INNER POINTS
+                    # NOTE: NEED TO ADJUST THIS TO ACCOUNT FOR THAT
+                    # IDEA: CHECK IF THE FACE CROSSES THE "-x"-axis, AND THEN TEMPORARILY ADD 2pi TO THE NEGATIVE
+                    # VALUES AND THEN USE THOSE INDICES OF POINTS TO SET THE VERTICES
+                    radial_coords = [np.linalg.norm(coord) for coord in coords]
+                    theta_coords = [np.arctan2(coord[1], coord[0]) for coord in coords]
+
+                    max_pt = np.array([max(radial_coords), max(theta_coords)])
+                    min_pt = np.array([min(radial_coords), min(theta_coords)])
+
+                    if abs(max_pt[1] - min_pt[1]) > np.pi and min_pt[1] < 0 and max_pt[1] > 0:
+                        # max_pt[1], min_pt[1] = min_pt[1], max_pt[1]
+                        for i, theta in enumerate(theta_coords):
+                            if theta < 0:
+                                theta_coords[i] += 2*np.pi
+                        
+                        min_pt[1] = min(theta_coords)
+                        max_pt[1] = max(theta_coords) - 2*np.pi
+                        
 
                     [r_avg, th_avg] = (max_pt + min_pt)/2
                     [r_del, th_del] = (max_pt - min_pt)
 
-                    p1 = Vertex(r_avg + r_del * (1 + delta), th_avg + th_del/2 * (1 + delta), mode='polar')
-                    p2 = Vertex(r_avg + r_del * (1 + delta), th_avg - th_del/2 * (1 + delta), mode='polar')
-                    p3 = Vertex(r_avg - r_del * (1 + delta), th_avg - th_del/2 * (1 + delta), mode='polar')
-                    p4 = Vertex(r_avg - r_del * (1 + delta), th_avg + th_del/2 * (1 + delta), mode='polar')
+
+                    p1 = Vertex(r_avg*(1-delta) - r_del/2, th_avg*(1+delta) + th_del/2, mode='polar')
+                    p2 = Vertex(r_avg*(1-delta) - r_del/2, th_avg*(1-delta) - th_del/2, mode='polar')
+                    p3 = Vertex(r_avg*(1+delta) + r_del/2, th_avg*(1-delta) - th_del/2, mode='polar')
+                    p4 = Vertex(r_avg*(1+delta) + r_del/2, th_avg*(1+delta) + th_del/2, mode='polar')
 
                     vertices = [p1, p2, p3, p4]
                     self.face_vertices = vertices
+                    # NOTE: FOR FUTURE CHANGES, CONSIDER JUST RETURNING P00 AND P11 HERE
             args = vertices
 
         elif input_type == 'edges':
