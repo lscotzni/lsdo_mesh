@@ -578,13 +578,6 @@ class Mesh(object):
             (sparse_val, (sparse_row, sparse_col)),
             shape=((len(self.ffd_faces) * 8, max(sparse_col) + 1))
         )
-        # print(self.shape_param_sps_mat.toarray())
-        # print(self.shape_param_sps_mat.toarray().shape)
-        # print(self.shape_parameter_list)
-        # # exit()
-        # print(self.axis_list)
-        # print(self.parameter_type_list)
-        # print(self.parameter_index_list)
 
     def assemble_ffd_control_points(self, coordinate_system='cartesian'):
         self.num_ffd_faces          = len(self.ffd_faces)
@@ -607,7 +600,6 @@ class Mesh(object):
             P11 = [np.max(face_coords[:,0]), np.max(face_coords[:,1])]
 
             face_coords = np.array([P00, P10, P01, P11])
-            print(face_coords)
 
             start       = self.num_ffd_face_coords * face_ind
             end         = start + self.num_ffd_face_coords
@@ -632,18 +624,20 @@ class Mesh(object):
             # ffd_face_control_pts = self.ffd_face_control_pts[:]
             for face_ind, face in enumerate(self.ffd_faces):
                 embedded_points = vars(face)['embedded_points']
+                face_dummy = copy.copy(face)
 
                 if all([vars(embedded_points[i])['rotate_instance'] for i in range(len(embedded_points))]):
-                    control_points  = vars(face)['face_vertices']
+                    face_copy = copy.copy(face_dummy)
+                    control_points  = vars(face_copy)['face_vertices']
                     # print('before:', control_points)
                     control_points  = rotate(
                         entities=control_points,
                         angle=[0., 0., angle],
                     )
-                    vars(face)['face_vertices'] = control_points
+                    vars(face_copy)['face_vertices'] = control_points
                     # print('after:', control_points)
                 
-                    face_coords     = np.array(face.return_coordinates(coordinate_system)) # reshape((4 * dim)) to vectorize
+                    face_coords     = np.array(face_copy.return_coordinates(coordinate_system)) # reshape((4 * dim)) to vectorize
                     # face_coords     = [control_points[i].return_coordinates(coordinate_system) for i in range(4)]
                     # face_coords     = np.array(face_coords)
 
@@ -668,6 +662,7 @@ class Mesh(object):
             # self.ffd_cp_instances.append(np.array(ffd_face_control_pts))
             self.ffd_cp_instances.append(ffd_face_control_pts)
         self.ffd_cp_instances = np.array(self.ffd_cp_instances)
+        # exit()
 
         # # CHECK FFD CP AND DIFFERENCE FOR EACH ROTATION INSTANCE
         # for i in range(len(self.rotation_angles)):
@@ -693,7 +688,6 @@ class Mesh(object):
         for a, angle in enumerate(self.rotation_angles):
             sparse_row, sparse_col, sparse_val = [], [], []
             print('angle instance:', a)
-            print('num ffd faces: ', len(self.ffd_faces))
 
             ffd_face_control_pts = self.ffd_cp_instances[a]
 
@@ -704,7 +698,6 @@ class Mesh(object):
                 # need to extract P00 and P11 from self.ffd_face_control_pts
                 P00     = [ffd_face_control_pts[start], ffd_face_control_pts[start + 1]]
                 P11     = [ffd_face_control_pts[end - 2], ffd_face_control_pts[end - 1]]
-                print('min & max FFD control points:', P00, P11)
 
                 # loop for the number of children within the face
                 embedded_points = vars(face)['embedded_points'] # need to apply rotation here for points with rotated instances
@@ -735,8 +728,7 @@ class Mesh(object):
                     theta_discontinuity = 1
                     # P00[0], P11[0] = P11[0], P00[0] + 2*np.pi # ORDER SWAPPED HERE BECAUSE OF 2pi ADDITION
                     P00[0], P11[0] = P11[0], P00[0] + 2*np.pi # ORDER SWAPPED HERE BECAUSE OF 2pi ADDITION
-                print('theta_discontinuity:', theta_discontinuity)
-                print('FFD CPs for parametrization:', P00, P11)
+
                 for point_ind, point in enumerate(embedded_points):
                     if a != 0:
                         if all([vars(embedded_points[i])['rotate_instance'] for i in range(len(embedded_points))]):
@@ -762,16 +754,13 @@ class Mesh(object):
                     # print('index:', index)
 
                     # ADD PI-CONDITION 
-                    print('point_coords before:', point_coords)
                     if theta_discontinuity == 1:
                         if point_coords[0] < 0:
                             point_coords[0] += 2*np.pi
-                    print('point_coords:', point_coords)
-                    print('embedded_dim: ', embedded_dim)
+                            
                     if embedded_dim == 0:
                         [u, v] = [1, 1]
                     elif embedded_dim == 1:
-                        print('const_dim: ', const_dim)
                         if const_dim == 0:
                             [u,v] = [1, (point_coords[1] - P00[1]) / (P11[1] - P00[1])]
                         elif const_dim == 1:
@@ -782,9 +771,8 @@ class Mesh(object):
                             (point_coords[1] - P00[1]) / (P11[1] - P00[1]),
                         ]
 
-                    print('u & v:', u,v)
-                    if np.any([i < 0 for i in [u,v]])  or np.any([i > 1 for i in [u,v]]) :
-                        print('outside of bounds of 0 & 1')
+                    # if np.any([i < 0 for i in [u,v]])  or np.any([i > 1 for i in [u,v]]):
+                    #     print('outside of bounds of 0 & 1')
 
                     for i in range(4):
                         sparse_row.extend(
@@ -814,27 +802,6 @@ class Mesh(object):
                 shape=(self.num_points * self.dim, self.num_ffd_face_coords * self.num_ffd_faces)
             )
             self.ffd_face_sps_mat_list.append(ffd_face_sps_mat)
-        print('---')
-        # print(self.ffd_face_sps_mat)
-        # print(self.ffd_face_sps_mat.toarray())
-        # print(self.ffd_face_sps_mat.toarray().shape)
-        if False:
-            orig_points = self.ffd_face_sps_mat.dot(self.ffd_face_control_pts) # check for whether FFD faces return original points
-            # asdf  = self.ffd_face_sps_mat.dot(self.ffd_cp_instances[1]) 
-            asdf  = self.ffd_face_sps_mat_list[1].dot(self.ffd_cp_instances[1]) 
-            # # other ways to do the above dot product:
-            # # asdf = np.dot(ffd_face_sps_mat, ffd_face_control_pts)
-            # # asdf = ffd_face_sps_mat @ ffd_face_control_pts 
-
-            print('FFD Parametrization check:')
-            print(orig_points)
-            print(asdf)
-            print(asdf - orig_points) # entries here should return rotation angle (in radians)
-            # print(np.where(orig_points))
-            # print(np.where(asdf - orig_points))
-            print(self.ffd_face_sps_mat_list[0].shape)
-            print(self.ffd_cp_instances[0].shape)
-            print(orig_points.shape)
 
     def assemble_edge_parametrization(self, coordinate_system='cartesian'):
         # print(' ============ ASSEMBLING EDGE PARAMETRIZATION ============ ')
@@ -942,35 +909,6 @@ class Mesh(object):
                 shape=(int((num_edge_nodes + 1) * self.dim), int((num_points) * self.dim)),
             )
             self.edge_param_sps_mat_list.append(edge_param_sps_mat)
-        # exit()
-
-
-        # ------------ TESTING OUTPUT OF APPLYING PARAMETRIZATION MATRIX TO ORIGINAL POINTS ------------
-        if False:
-            print('---')
-            for a in range(len(self.rotation_angles)):
-                node_coords_test = self.edge_param_sps_mat_list[a].dot(self.mesh_points_instances[a])
-                
-                # Checking if the application of projection onto our point coordinates properly returns the nodes
-                # along edges by looking at error norm with edge node coordinates from GMSH
-                error_norm_array = []
-                for i, edge_nodes in enumerate(self.edge_node_indices):
-                    edge_node_coords = np.array(self.edge_nodes_instances[a][i])[:,:2].reshape((2 * len(edge_nodes),))
-                    for j, node in enumerate(edge_nodes):               
-                        error = np.array(node_coords_test[int(2*(node-1)):int(2*(node-1) + 2)], dtype=float) - \
-                            np.array(edge_node_coords[int(2*(j)):int(2*(j) + 2)], dtype=float)
-                        error_norm_array.append(np.linalg.norm(error)) 
-
-                self.high_error_ind = np.where(np.abs(error_norm_array) > 1e-8)
-
-                # UNCOMMENT FIRST 3 LINES BELOW TO LOOK AT ERROR
-                print('error norm array: ', error_norm_array)
-                print('high error norm locations: ', self.high_error_ind)
-                print('norm of error norm array: ', np.linalg.norm(error_norm_array))
-                # # print(node_coords_test.reshape((int(len(node_coords_test)/2), dim)))
-                # print('---')
-                # print(node_coords_test)
-            # exit()
    
     def assemble_mesh_parametrization(self, coordinate_system='cartesian'):
         pass
